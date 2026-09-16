@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { type Session, type User, type SupabaseClient } from '@supabase/supabase-js'
 
@@ -18,65 +18,112 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient() as SupabaseClient | null
-  const configured = !!supabase
+  const [configured, setConfigured] = useState(false)
+  const mountedRef = useRef(true)
 
   useEffect(() => {
-    if (!configured) {
+    mountedRef.current = true
+
+    // Initialize client synchronously - not in a promise
+    const client = createClient()
+    
+    if (!client) {
+      console.error('[Auth] Supabase client not initialized')
+      setConfigured(false)
       setLoading(false)
       return
     }
 
+    console.log('[Auth] Supabase client ready')
+    setSupabase(client)
+    setConfigured(true)
+
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
+    client.auth.getSession().then(({ data: { session } }) => {
+      if (mountedRef.current) {
+        setSession(session)
+        setUser(session?.user ?? null)
+        setLoading(false)
+      }
     })
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
+    } = client.auth.onAuthStateChange((_event, session) => {
+      if (mountedRef.current) {
+        setSession(session)
+        setUser(session?.user ?? null)
+        setLoading(false)
+      }
     })
 
-    return () => subscription.unsubscribe()
-  }, [configured, supabase])
+    return () => {
+      mountedRef.current = false
+      subscription.unsubscribe()
+    }
+  }, [])
 
-  const signUp = async (email: string, password: string) => {
-    if (!configured) throw new Error('Supabase not configured')
-    const { error } = await supabase!.auth.signUp({ email, password })
+  const signUp = useCallback(async (email: string, password: string) => {
+    const maxWait = 5000
+    const startTime = Date.now()
+    while (!supabase && Date.now() - startTime < maxWait) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    if (!supabase) {
+      throw new Error('Supabase not configured. Please refresh the page.')
+    }
+    const { error } = await supabase.auth.signUp({ email, password })
     if (error) throw error
-  }
+  }, [supabase])
 
-  const signIn = async (email: string, password: string) => {
-    if (!configured) throw new Error('Supabase not configured')
-    const { error } = await supabase!.auth.signInWithPassword({ email, password })
+  const signIn = useCallback(async (email: string, password: string) => {
+    const maxWait = 5000
+    const startTime = Date.now()
+    while (!supabase && Date.now() - startTime < maxWait) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    if (!supabase) {
+      throw new Error('Supabase not configured. Please refresh the page.')
+    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
-  }
+  }, [supabase])
 
-  const signInWithGithub = async () => {
-    if (!configured) throw new Error('Supabase not configured')
-    const { error } = await supabase!.auth.signInWithOAuth({
+  const signInWithGithub = useCallback(async () => {
+    const maxWait = 5000
+    const startTime = Date.now()
+    while (!supabase && Date.now() - startTime < maxWait) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    if (!supabase) {
+      throw new Error('Supabase not configured. Please refresh the page.')
+    }
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     })
     if (error) throw error
-  }
+  }, [supabase])
 
-  const signOut = async () => {
-    if (!configured) throw new Error('Supabase not configured')
-    const { error } = await supabase!.auth.signOut()
+  const signOut = useCallback(async () => {
+    const maxWait = 5000
+    const startTime = Date.now()
+    while (!supabase && Date.now() - startTime < maxWait) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    if (!supabase) {
+      throw new Error('Supabase not configured. Please refresh the page.')
+    }
+    const { error } = await supabase.auth.signOut()
     if (error) throw error
-  }
+  }, [supabase])
 
   return (
     <AuthContext.Provider

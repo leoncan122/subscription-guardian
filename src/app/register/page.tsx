@@ -1,64 +1,83 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function Register() {
-  const router = useRouter();
-  const { user, loading: authLoading, signUp } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter()
+  const { user, loading: authLoading, configured, signUp } = useAuth()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Redirect if already logged in
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading) return
     if (user) {
-      router.push('/dashboard');
+      router.push('/dashboard')
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router])
 
   const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      setLoading(false);
-      return;
+      setError('Passwords do not match')
+      setLoading(false)
+      return
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      setLoading(false);
-      return;
+      setError('Password must be at least 6 characters')
+      setLoading(false)
+      return
     }
 
     try {
-      await signUp(email, password);
+      await signUp(email, password)
       // If email confirmation is required, show message
-      setError('Registration successful! Check your email for confirmation.');
+      setError('Registration successful! Check your email for confirmation.')
     } catch (err: any) {
       if (err.message?.includes('already')) {
-        setError('An account with this email already exists');
+        setError('An account with this email already exists')
       } else {
-        setError(err.message || 'Failed to register');
+        setError(err.message || 'Failed to register')
       }
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  if (authLoading) {
+  // Show loading while auth context is initializing
+  if (authLoading || !configured) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full" />
+        <div className="text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
+          <p className="text-gray-400">Loading authentication...</p>
+          <p className="text-xs text-gray-600 mt-2">Please wait, do not close this page</p>
+        </div>
       </div>
-    );
+    )
+  }
+
+  // Show error if Supabase is not configured
+  if (!configured) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <span className="text-4xl mb-4 block">⚠️</span>
+          <h2 className="text-xl font-bold text-white mb-2">Authentication Error</h2>
+          <p className="text-gray-400 mb-4">Supabase configuration is not available.</p>
+          <p className="text-sm text-gray-600">Please check your environment variables or try again later.</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -167,5 +186,5 @@ export default function Register() {
         </p>
       </div>
     </div>
-  );
+  )
 }

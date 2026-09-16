@@ -1,57 +1,76 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function Login() {
-  const router = useRouter();
-  const { user, loading: authLoading, signIn, signInWithGithub } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter()
+  const { user, loading: authLoading, configured, signIn, signInWithGithub } = useAuth()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Redirect if already logged in
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading) return
     if (user) {
-      router.push('/dashboard');
+      router.push('/dashboard')
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router])
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
 
     try {
-      await signIn(email, password);
-      router.push('/dashboard');
+      await signIn(email, password)
+      router.push('/dashboard')
     } catch (err: any) {
-      setError(err.message || 'Failed to log in');
+      setError(err.message || 'Failed to log in')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleGithubLogin = async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true)
+    setError(null)
     try {
-      await signInWithGithub();
+      await signInWithGithub()
     } catch (err: any) {
-      setError(err.message || 'Failed to login with GitHub');
-      setLoading(false);
+      setError(err.message || 'Failed to login with GitHub')
+      setLoading(false)
     }
-  };
+  }
 
-  if (authLoading) {
+  // Show loading while auth context is initializing
+  if (authLoading || !configured) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full" />
+        <div className="text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
+          <p className="text-gray-400">Loading authentication...</p>
+          <p className="text-xs text-gray-600 mt-2">Please wait, do not close this page</p>
+        </div>
       </div>
-    );
+    )
+  }
+
+  // Show error if Supabase is not configured
+  if (!configured) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <span className="text-4xl mb-4 block">⚠️</span>
+          <h2 className="text-xl font-bold text-white mb-2">Authentication Error</h2>
+          <p className="text-gray-400 mb-4">Supabase configuration is not available.</p>
+          <p className="text-sm text-gray-600">Please check your environment variables or try again later.</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -144,5 +163,5 @@ export default function Login() {
         </p>
       </div>
     </div>
-  );
+  )
 }
