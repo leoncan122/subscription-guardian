@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { RegisterSW } from "./register-sw";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -52,8 +53,10 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className="min-h-full flex flex-col bg-gray-950 text-white">
-        <RegisterSW />
-        {children}
+        <AuthProvider>
+          <RegisterSW />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );
