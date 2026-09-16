@@ -1,4 +1,4 @@
-export function Header() {
+export function Header({ onLogout }: { onLogout?: () => Promise<void> }) {
   return (
     <header className="bg-gray-900/80 backdrop-blur-sm border-b border-gray-800 px-4 py-3 sticky top-0 z-10">
       <div className="flex items-center justify-between">
@@ -6,8 +6,18 @@ export function Header() {
           <span className="text-2xl">🛡️</span>
           <h1 className="text-lg font-bold text-white">Subscription Guardian</h1>
         </div>
-        <div className="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded-full">
-          PWA
+        <div className="flex items-center gap-2">
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded-full bg-gray-800 transition-colors"
+            >
+              Logout
+            </button>
+          )}
+          <div className="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded-full">
+            PWA
+          </div>
         </div>
       </div>
     </header>

@@ -1,11 +1,13 @@
 export function SummaryCard({
   title,
-  value,
+  amount,
+  currency,
   subtitle,
   icon,
 }: {
   title: string;
-  value: string;
+  amount: number;
+  currency?: string;
   subtitle: string;
   icon: string;
 }) {
@@ -17,7 +19,9 @@ export function SummaryCard({
           {title}
         </span>
       </div>
-      <p className="text-2xl font-bold text-white">{value}</p>
+      <p className="text-2xl font-bold text-white">
+        {currency ? `${currency} ${amount.toFixed(2)}` : amount.toString()}
+      </p>
       <p className="text-sm text-gray-400 mt-1">{subtitle}</p>
     </div>
   );
