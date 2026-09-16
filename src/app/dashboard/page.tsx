@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Subscription } from '@/types/subscription';
 import { getSubscriptions, addSubscription, updateSubscription, deleteSubscription, getBankConnections } from '@/lib/supabase/subscriptions';

@@ -1,7 +1,5 @@
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { Subscription } from '@/types/subscription'
-
-const supabase = createClient()
 
 export async function getSubscriptions(): Promise<Subscription[]> {
   if (!supabase) return []

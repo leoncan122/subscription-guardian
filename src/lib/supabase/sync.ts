@@ -1,16 +1,14 @@
 import { getSubscriptions, addSubscription as addSupaSubscription, updateSubscription, deleteSubscription } from '@/lib/supabase/subscriptions'
+import { supabase } from '@/lib/supabase/client'
 import { Subscription } from '@/types/subscription'
-import { createClient } from '@/lib/supabase/client'
 
 // Sync functions that bridge local IndexedDB with Supabase
 export async function syncToCloud(): Promise<{ success: boolean; synced: number }> {
-  const client = createClient()
-  if (!client) return { success: false, synced: 0 }
+  if (!supabase) return { success: false, synced: 0 }
 
-  const { data: { user } } = await client.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, synced: 0 }
 
-  // Get local subscriptions from IndexedDB
   const localSubscriptions = await getLocalSubscriptions()
 
   if (localSubscriptions.length === 0) return { success: true, synced: 0 }
@@ -24,7 +22,6 @@ export async function syncToCloud(): Promise<{ success: boolean; synced: number 
     synced++
   }
 
-  // Clear local after successful sync
   await clearLocalSubscriptions()
 
   return { success: true, synced }
@@ -32,16 +29,12 @@ export async function syncToCloud(): Promise<{ success: boolean; synced: number 
 
 export async function syncFromCloud(): Promise<Subscription[]> {
   const subscriptions = await getSubscriptions()
-
-  // Store in IndexedDB
   await saveLocalSubscriptions(subscriptions)
-
   return subscriptions
 }
 
 // IndexedDB helpers (simplified - in production, use the existing db utilities)
 async function getLocalSubscriptions(): Promise<any[]> {
-  // Read from IndexedDB using existing utilities
   const { openDB } = await import('idb')
   const db = await openDB('subscription-guardian', 1)
   const store = db.transaction('subscriptions', 'readonly').store

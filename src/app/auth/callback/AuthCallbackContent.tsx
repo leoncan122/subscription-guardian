@@ -2,21 +2,20 @@
 
 import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
 
 export default function AuthCallbackContent() {
   const router = useRouter();
-  const { user, loading } = useAuth();
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    if (loading) return;
-    if (user) {
-      router.push('/dashboard');
-    } else if (searchParams.get('error')) {
+    const error = searchParams.get('error');
+    if (error) {
       router.push('/login');
+    } else {
+      // OAuth callback completed, redirect to dashboard
+      router.push('/dashboard');
     }
-  }, [user, loading, router, searchParams]);
+  }, [router, searchParams]);
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center">
