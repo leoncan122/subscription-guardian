@@ -39,18 +39,15 @@ export default function Register() {
     }
 
     try {
-      const { error } = await signUp(email, password);
-      if (error) {
-        if (error.message?.includes('already')) {
-          setError('An account with this email already exists');
-        } else if (error.message?.includes('email confirmed')) {
-          router.push('/dashboard');
-        } else {
-          setError(error.message || 'Failed to register');
-        }
-      }
+      await signUp(email, password);
+      // If email confirmation is required, show message
+      setError('Registration successful! Check your email for confirmation.');
     } catch (err: any) {
-      setError(err.message || 'Failed to register');
+      if (err.message?.includes('already')) {
+        setError('An account with this email already exists');
+      } else {
+        setError(err.message || 'Failed to register');
+      }
     } finally {
       setLoading(false);
     }

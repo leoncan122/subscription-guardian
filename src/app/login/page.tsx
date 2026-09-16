@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function Login() {
   const router = useRouter();
-  const { user, loading: authLoading, signIn, signInWithGitHub } = useAuth();
+  const { user, loading: authLoading, signIn, signInWithGithub } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,8 +26,7 @@ export default function Login() {
     setError(null);
 
     try {
-      const { error } = await signIn(email, password);
-      if (error) throw new Error(error.message || 'Failed to log in');
+      await signIn(email, password);
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Failed to log in');
@@ -38,9 +37,9 @@ export default function Login() {
 
   const handleGithubLogin = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const { error } = await signInWithGitHub();
-      if (error) throw new Error(error.message || 'Failed to login with GitHub');
+      await signInWithGithub();
     } catch (err: any) {
       setError(err.message || 'Failed to login with GitHub');
       setLoading(false);

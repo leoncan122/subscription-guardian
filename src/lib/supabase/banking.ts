@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/client'
 const supabase = createClient()
 
 export async function connectBank(bankId: string, bankName: string): Promise<{ redirect_url: string }> {
+  if (!supabase) throw new Error('Supabase not configured')
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
@@ -31,6 +32,7 @@ export async function connectBank(bankId: string, bankName: string): Promise<{ r
 }
 
 export async function processBankingCallback(connectionId: string, transactionData: any): Promise<void> {
+  if (!supabase) return
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
@@ -52,7 +54,7 @@ export async function processBankingCallback(connectionId: string, transactionDa
   const detectedSubscriptions = extractSubscriptionsFromTransactions(transactionData)
 
   // Insert detected subscriptions into Supabase
-  if (detectedSubscriptions.length > 0) {
+  if (supabase && detectedSubscriptions.length > 0) {
     await supabase
       .from('subscriptions')
       .insert(detectedSubscriptions.map(sub => ({
@@ -103,6 +105,7 @@ function extractSubscriptionsFromTransactions(transactions: any[]): any[] {
 }
 
 export async function syncTransactions(connectionId: string): Promise<any[]> {
+  if (!supabase) return []
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
@@ -129,6 +132,7 @@ async function fetchBankTransactions(connectionId: string, userId: string): Prom
 }
 
 export async function disconnectBank(connectionId: string): Promise<boolean> {
+  if (!supabase) return false
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return false
 

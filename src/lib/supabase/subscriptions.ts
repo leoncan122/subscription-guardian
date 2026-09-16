@@ -4,6 +4,7 @@ import { Subscription } from '@/types/subscription'
 const supabase = createClient()
 
 export async function getSubscriptions(): Promise<Subscription[]> {
+  if (!supabase) return []
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
@@ -19,6 +20,7 @@ export async function getSubscriptions(): Promise<Subscription[]> {
 }
 
 export async function addSubscription(sub: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'>): Promise<Subscription | null> {
+  if (!supabase) return null
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
@@ -44,6 +46,7 @@ export async function addSubscription(sub: Omit<Subscription, 'id' | 'createdAt'
 }
 
 export async function updateSubscription(id: string, updates: Partial<Subscription>): Promise<Subscription | null> {
+  if (!supabase) return null
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
@@ -63,6 +66,7 @@ export async function updateSubscription(id: string, updates: Partial<Subscripti
 }
 
 export async function deleteSubscription(id: string): Promise<boolean> {
+  if (!supabase) return false
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return false
 
@@ -83,6 +87,7 @@ export async function getBankConnections(): Promise<Array<{
   last_sync: string | null
   created_at: string
 }>> {
+  if (!supabase) return []
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 

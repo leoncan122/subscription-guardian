@@ -1,9 +1,13 @@
 import { getSubscriptions, addSubscription as addSupaSubscription, updateSubscription, deleteSubscription } from '@/lib/supabase/subscriptions'
 import { Subscription } from '@/types/subscription'
+import { createClient } from '@/lib/supabase/client'
 
 // Sync functions that bridge local IndexedDB with Supabase
 export async function syncToCloud(): Promise<{ success: boolean; synced: number }> {
-  const { data: { user } } = await (await import('@/lib/supabase/client')).createClient().auth.getUser()
+  const client = createClient()
+  if (!client) return { success: false, synced: 0 }
+
+  const { data: { user } } = await client.auth.getUser()
   if (!user) return { success: false, synced: 0 }
 
   // Get local subscriptions from IndexedDB

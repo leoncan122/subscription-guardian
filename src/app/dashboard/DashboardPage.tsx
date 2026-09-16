@@ -24,6 +24,7 @@ export default function DashboardPage() {
 
   const loadSubscriptions = useCallback(async () => {
     try {
+      if (!supabase) throw new Error('Supabase not configured')
       const { data, error } = await supabase
         .from('subscriptions')
         .select('*')
@@ -43,6 +44,7 @@ export default function DashboardPage() {
     loadSubscriptions()
 
     // Subscribe to real-time updates
+    if (!supabase) return
     const channel = supabase
       .channel('subscriptions-changes')
       .on(
@@ -53,7 +55,7 @@ export default function DashboardPage() {
           table: 'subscriptions',
           filter: `user_id=eq.${user?.id}`,
         },
-        (payload) => {
+        (payload: any) => {
           console.log('Change received!', payload)
           loadSubscriptions()
         }
@@ -69,6 +71,7 @@ export default function DashboardPage() {
 
   const handleAdd = async (sub: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
+      if (!supabase) throw new Error('Supabase not configured')
       const { error } = await supabase
         .from('subscriptions')
         .insert({ ...sub, user_id: user?.id })
@@ -83,6 +86,7 @@ export default function DashboardPage() {
 
   const handleEdit = async (id: string, updates: Partial<Subscription>) => {
     try {
+      if (!supabase) throw new Error('Supabase not configured')
       const { error } = await supabase
         .from('subscriptions')
         .update(updates)
@@ -97,6 +101,7 @@ export default function DashboardPage() {
 
   const handleDelete = async (id: string) => {
     try {
+      if (!supabase) throw new Error('Supabase not configured')
       const { error } = await supabase
         .from('subscriptions')
         .delete()
@@ -111,6 +116,7 @@ export default function DashboardPage() {
 
   const handleToggle = async (id: string, active: boolean) => {
     try {
+      if (!supabase) throw new Error('Supabase not configured')
       const { error } = await supabase
         .from('subscriptions')
         .update({ active })
@@ -125,6 +131,7 @@ export default function DashboardPage() {
 
   const handleDisconnectBank = async () => {
     try {
+      if (!supabase) throw new Error('Supabase not configured')
       const { error } = await supabase
         .from('bank_connections')
         .delete()
@@ -318,6 +325,7 @@ function BankConnectionCard({ userId, onDisconnect }: { userId: string; onDiscon
 
   useEffect(() => {
     const checkConnection = async () => {
+      if (!supabase) return
       const { data } = await supabase
         .from('bank_connections')
         .select('status')

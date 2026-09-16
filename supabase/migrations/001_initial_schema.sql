@@ -1,31 +1,62 @@
--- Create auth-enabled database schema for subscription-guardian
+# Run this SQL in Supabase Dashboard → SQL Editor to create tables
 
--- Enable Row Level Security
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    billing_cycle TEXT NOT NULL DEFAULT 'monthly',
+    renewal_date DATE NOT NULL,
+    payment_method TEXT,
+    cancellation_info TEXT,
+    category TEXT NOT NULL DEFAULT 'other',
+    active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 
--- Create policy: users can only see their own data
 CREATE POLICY "Users can view own subscriptions"
-ON subscriptions FOR SELECT
-USING (auth.uid() = user_id);
+    ON subscriptions FOR SELECT
+    USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can insert own subscriptions"
-ON subscriptions FOR INSERT
-WITH CHECK (auth.uid() = user_id);
+    ON subscriptions FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can update own subscriptions"
-ON subscriptions FOR UPDATE
-USING (auth.uid() = user_id);
+    ON subscriptions FOR UPDATE
+    USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete own subscriptions"
-ON subscriptions FOR DELETE
-USING (auth.uid() = user_id);
+    ON subscriptions FOR DELETE
+    USING (auth.uid() = user_id);
 
--- Create policy: users can view own settings
+CREATE TABLE IF NOT EXISTS user_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    notifications_enabled BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
+
 CREATE POLICY "Users can view own settings"
-ON user_settings FOR SELECT
-USING (auth.uid() = user_id);
+    ON user_settings FOR SELECT
+    USING (auth.uid() = user_id);
 
--- bank_connections table
+CREATE POLICY "Users can insert own settings"
+    ON user_settings FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own settings"
+    ON user_settings FOR UPDATE
+    USING (auth.uid() = user_id);
+
 CREATE TABLE IF NOT EXISTS bank_connections (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -40,23 +71,24 @@ CREATE TABLE IF NOT EXISTS bank_connections (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+ALTER TABLE bank_connections ENABLE ROW LEVEL SECURITY;
+
 CREATE POLICY "Users can view own bank connections"
-ON bank_connections FOR SELECT
-USING (auth.uid() = user_id);
+    ON bank_connections FOR SELECT
+    USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can insert own bank connections"
-ON bank_connections FOR INSERT
-WITH CHECK (auth.uid() = user_id);
+    ON bank_connections FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can update own bank connections"
-ON bank_connections FOR UPDATE
-USING (auth.uid() = user_id);
+    ON bank_connections FOR UPDATE
+    USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete own bank connections"
-ON bank_connections FOR DELETE
-USING (auth.uid() = user_id);
+    ON bank_connections FOR DELETE
+    USING (auth.uid() = user_id);
 
--- Create trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
