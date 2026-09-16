@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { BASE_PATH } from '@/lib/constants'
 
 export default function Login() {
   const router = useRouter()
@@ -20,8 +21,7 @@ export default function Login() {
       if (!supabase) throw new Error('Supabase not configured')
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
-      // Reload to pick up new session via AuthContext
-      router.push('/dashboard')
+      router.push(BASE_PATH + '/dashboard')
       router.refresh()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido'
@@ -38,7 +38,7 @@ export default function Login() {
       if (!supabase) throw new Error('Supabase not configured')
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
+        options: { redirectTo: window.location.origin + BASE_PATH + '/auth/callback' },
       })
       if (error) throw error
     } catch (err: unknown) {
@@ -118,7 +118,7 @@ export default function Login() {
         <p className="text-center text-slate-400 mt-6">
           ¿No tienes cuenta?{' '}
           <button
-            onClick={() => router.push('/register')}
+            onClick={() => router.push(BASE_PATH + '/register')}
             className="text-blue-400 hover:text-blue-300 font-medium"
           >
             Registrarse

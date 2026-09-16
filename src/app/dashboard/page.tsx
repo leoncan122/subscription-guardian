@@ -9,8 +9,7 @@ import { connectBank, processBankingCallback, disconnectBank as disconnectBankFu
 import { Header, TabBar } from '@/components/Header';
 import { SubscriptionCard } from '@/components/SubscriptionCard';
 import { SummaryCard } from '@/components/SummaryCard';
-
-const basePath = "/subscription-guardian";
+import { BASE_PATH } from '@/lib/constants';
 
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut: logout } = useAuth();
@@ -24,7 +23,7 @@ export default function DashboardPage() {
   // Redirect if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
-      window.location.href = '/login';
+      window.location.href = BASE_PATH + '/login';
     }
   }, [user, authLoading]);
 

@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { requestNotificationPermission, subscribeToPush } from "@/utils/push-notifications";
-
-const basePath = "/subscription-guardian";
+import { BASE_PATH } from "@/lib/constants";
 
 export function RegisterSW() {
   const [isPWA, setIsPWA] = useState(false);
@@ -17,7 +16,7 @@ export function RegisterSW() {
 
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker
-        .register(`${basePath}/sw.js`, { scope: `${basePath}/` })
+        .register(`${BASE_PATH}/sw.js`, { scope: `${BASE_PATH}/` })
         .then((registration) => {
           console.log("SW registered:", registration.scope);
 

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { BASE_PATH } from '@/lib/constants'
 
 export default function Register() {
   const router = useRouter()
@@ -21,7 +22,7 @@ export default function Register() {
       if (!supabase) throw new Error('Supabase not configured')
       const { error } = await supabase.auth.signUp({ email, password })
       if (error) throw error
-      router.push('/dashboard')
+      router.push(BASE_PATH + '/dashboard')
       router.refresh()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido'
