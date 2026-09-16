@@ -3,6 +3,8 @@
 import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+const basePath = "/subscription-guardian";
+
 export default function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -10,10 +12,10 @@ export default function AuthCallbackContent() {
   useEffect(() => {
     const error = searchParams.get('error');
     if (error) {
-      router.push('/login');
+      router.push(`${basePath}/login`);
     } else {
       // OAuth callback completed, redirect to dashboard
-      router.push('/dashboard');
+      router.push(`${basePath}/dashboard`);
     }
   }, [router, searchParams]);
 

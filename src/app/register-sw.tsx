@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { requestNotificationPermission, subscribeToPush } from "@/utils/push-notifications";
 
+const basePath = "/subscription-guardian";
+
 export function RegisterSW() {
   const [isPWA, setIsPWA] = useState(false);
 
@@ -15,7 +17,7 @@ export function RegisterSW() {
 
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker
-        .register("/sw.js", { scope: "/" })
+        .register(`${basePath}/sw.js`, { scope: `${basePath}/` })
         .then((registration) => {
           console.log("SW registered:", registration.scope);
 

@@ -10,6 +10,8 @@ import { Header, TabBar } from '@/components/Header';
 import { SubscriptionCard } from '@/components/SubscriptionCard';
 import { SummaryCard } from '@/components/SummaryCard';
 
+const basePath = "/subscription-guardian";
+
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut: logout } = useAuth();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);

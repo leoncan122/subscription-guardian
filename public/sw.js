@@ -3,14 +3,17 @@ const CACHE_NAME = "subscription-guardian-v1";
 const DATA_CACHE = "api-cache-v1";
 const RUNTIME_CACHE = "runtime-v1";
 
+const basePath = "/subscription-guardian";
+
+
 // Install event — cache essential shell
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll([
-        "/",
-        "/manifest.json",
-        "/sw.js",
+        `${basePath}/`,
+        `${basePath}/manifest.json`,
+        `${basePath}/sw.js`,
       ]);
     })
   );

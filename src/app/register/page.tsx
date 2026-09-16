@@ -16,6 +16,7 @@ export default function Register() {
     setLoading(true)
     setError('')
 
+
     try {
       if (!supabase) throw new Error('Supabase not configured')
       const { error } = await supabase.auth.signUp({ email, password })
