@@ -93,6 +93,21 @@ export function buildAuthorizeUrl(redirectUri: string, clientId: string, scope: 
   return authUrl.toString()
 }
 
+// Builds an Error with the full response body TrueLayer sent back, instead
+// of silently falling back to a generic message when error_description
+// isn't present (their error shape isn't consistent across endpoints).
+async function tlError(res: Response, fallback: string): Promise<Error> {
+  const text = await res.text().catch(() => '')
+  let detail = text
+  try {
+    const parsed = JSON.parse(text)
+    detail = parsed.error_description || parsed.error || text
+  } catch {
+    // not JSON - use the raw text as-is
+  }
+  return new Error(`${fallback} (HTTP ${res.status}): ${detail || '<empty response body>'}`)
+}
+
 export async function getToken(code: string, redirectUri: string, clientId: string, clientSecret: string): Promise<TLTokenResponse> {
   const res = await fetch(`${TRUELAYER_AUTH}/connect/token`, {
     method: 'POST',
@@ -106,10 +121,7 @@ export async function getToken(code: string, redirectUri: string, clientId: stri
     }),
   })
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error_description || 'Token exchange failed')
-  }
+  if (!res.ok) throw await tlError(res, 'Token exchange failed')
 
   return res.json()
 }
@@ -126,10 +138,7 @@ export async function refreshAccessToken(refreshToken: string, clientId: string,
     }),
   })
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error_description || 'Token refresh failed')
-  }
+  if (!res.ok) throw await tlError(res, 'Token refresh failed')
 
   return res.json()
 }
@@ -140,9 +149,7 @@ export async function revokeToken(accessToken: string): Promise<void> {
     headers: { 'Authorization': `Bearer ${accessToken}` },
   })
 
-  if (!res.ok) {
-    throw new Error('Token revocation failed')
-  }
+  if (!res.ok) throw await tlError(res, 'Token revocation failed')
 }
 
 export interface TLMe {
@@ -176,10 +183,7 @@ async function api<T>(accessToken: string, path: string, ctx: TLRequestContext =
 
   const res = await fetch(`${TRUELAYER_API}${path}`, { headers })
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error_description || 'API call failed')
-  }
+  if (!res.ok) throw await tlError(res, `API call failed (${path})`)
 
   const body: TLEnvelope<T> = await res.json()
   return body.results
