@@ -12,8 +12,12 @@ import type { Category } from '@/types/subscription'
 // under. Excludes ATM, CASH, CASHBACK, CHEQUE, TRANSFER, FEE_CHARGE, CREDIT,
 // INTEREST, DIVIDEND, CORRECTION, UNKNOWN - none of those are subscriptions,
 // even if the same merchant+amount happens to repeat.
+// DEBIT is included too: UK Open Banking breaks debits down into the
+// specific categories above, but XS2A providers (e.g. Spanish banks like
+// BBVA) often only report the coarse DEBIT/CREDIT direction with no finer
+// categorization - without it, nothing from those banks would ever match.
 // https://docs.truelayer.com/docs/transaction-data-reference
-const SUBSCRIPTION_LIKE_CATEGORIES = new Set(['DIRECT_DEBIT', 'STANDING_ORDER', 'PURCHASE', 'BILL_PAYMENT'])
+const SUBSCRIPTION_LIKE_CATEGORIES = new Set(['DIRECT_DEBIT', 'STANDING_ORDER', 'PURCHASE', 'BILL_PAYMENT', 'DEBIT'])
 
 // All functions below take the caller's request-scoped Supabase client (see
 // src/lib/supabase/server.ts) so RLS policies evaluate against the actual
