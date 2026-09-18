@@ -72,9 +72,12 @@ export function buildAuthorizeUrl(redirectUri: string, clientId: string, scope: 
   authUrl.searchParams.set('client_id', clientId)
   authUrl.searchParams.set('redirect_uri', redirectUri)
   authUrl.searchParams.set('scope', scope)
-  // uk-cs-mock is the sandbox mock bank; uk-ob-all lets the user pick from
-  // every real UK Open Banking provider in live mode.
-  authUrl.searchParams.set('providers', IS_LIVE ? 'uk-ob-all' : 'uk-cs-mock')
+  // uk-cs-mock is the sandbox mock bank. In live mode the default is
+  // uk-ob-all (every UK provider); override via TRUELAYER_PROVIDERS to add
+  // other countries - get the exact value from the TrueLayer Console's Auth
+  // Link Builder (Data API > Auth Link Builder) rather than guessing it.
+  const providers = IS_LIVE ? (process.env.TRUELAYER_PROVIDERS || 'uk-ob-all') : 'uk-cs-mock'
+  authUrl.searchParams.set('providers', providers)
   return authUrl.toString()
 }
 
