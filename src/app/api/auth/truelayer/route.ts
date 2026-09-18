@@ -4,7 +4,9 @@ import { BASE_PATH } from '@/lib/constants'
 
 // OAuth Start - User clicks "Connect with TrueLayer"
 export async function GET(request: Request) {
-  const origin = new URL(request.url).origin + BASE_PATH
+  const requestUrl = new URL(request.url)
+  const origin = requestUrl.origin + BASE_PATH
+  const country = requestUrl.searchParams.get('country') || undefined
 
   try {
     // Must match a redirect URI registered in the TrueLayer console exactly
@@ -12,7 +14,8 @@ export async function GET(request: Request) {
     const authUrl = TL.buildAuthorizeUrl(
       callbackUrl,
       process.env.TRUELAYER_CLIENT_ID || '',
-      'info accounts balance transactions'
+      'info accounts balance transactions',
+      country
     )
 
     return NextResponse.redirect(authUrl)

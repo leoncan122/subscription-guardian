@@ -81,6 +81,14 @@ Así, desarrollo local sigue siendo sandbox por defecto (seguro para probar) aun
 
 Bug encontrado en el camino: el valor de `TRUELAYER_CLIENT_ID` en Vercel estaba puesto como el string literal `"TRUELAYER_CLIENT_ID"` (el nombre de la variable, no su valor) — causaba el mismo error "unknown client or client not enabled". Ya corregido por el usuario en el dashboard de Vercel.
 
+### 8. Solo UK por ahora - otros países (España, etc.)
+
+`providers=uk-ob-all` limita el selector de banco a Reino Unido. TrueLayer sí opera en España (BBVA, Santander, CaixaBank, Sabadell y más, confirmado vía su blog/coverage page), pero **no se agregó soporte para España en esta sesión** porque no se pudo confirmar con confianza desde la documentación pública el string exacto de `providers` para incluir otro país (la doc remite a la herramienta visual "Auth Link Builder" en la Console de TrueLayer, no publica el valor).
+
+Se agregó `TRUELAYER_PROVIDERS` (env var, opcional, solo aplica en modo live) para poder pegar ahí el valor exacto que dé el Auth Link Builder sin tocar código — default `uk-ob-all` si no se setea.
+
+**Importante si se agrega España:** `transaction_classification` (la categorización automática de TrueLayer) y el enriquecimiento de `merchant_name` **solo están soportados para UK, Irlanda y Francia** ([transaction-data-reference](https://docs.truelayer.com/docs/transaction-data-reference)). Para bancos españoles, la detección de suscripciones caería siempre al fallback por descripción + regex de palabras clave (ya implementado), nunca a la clasificación oficial de TrueLayer.
+
 ### Pendiente / conocido
 
 - El "filtro por banco" en el dashboard usa `paymentMethod` (texto libre), no una referencia real a la conexión bancaria — con una sola cuenta de prueba no se puede validar bien la diferenciación entre bancos. Si se necesita distinguir bancos específicos, hay que guardar `connection_id` (o el nombre del proveedor) en `subscriptions` al confirmar.

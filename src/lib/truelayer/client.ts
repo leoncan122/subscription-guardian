@@ -11,6 +11,16 @@ const IS_LIVE = process.env.TRUELAYER_ENV === 'live'
 const TRUELAYER_AUTH = IS_LIVE ? 'https://auth.truelayer.com' : 'https://auth.truelayer-sandbox.com'
 const TRUELAYER_API = IS_LIVE ? 'https://api.truelayer.com' : 'https://api.truelayer-sandbox.com'
 
+// "providers" collection per country, live mode only. TrueLayer's own doc
+// only confirms the uk-ob-all pattern; the rest are inferred from the
+// access-method prefix (ob/xs2a/stet) seen on individual provider ids at
+// https://auth.truelayer.com/api/providers, not from published docs.
+// Verify with a real connection before trusting a newly-added country.
+export const COUNTRY_PROVIDERS: Record<string, { label: string; providers: string }> = {
+  uk: { label: 'United Kingdom', providers: 'uk-ob-all' },
+  es: { label: 'España', providers: 'es-xs2a-all' },
+}
+
 export interface TLTokenResponse {
   access_token: string
   refresh_token: string
@@ -66,15 +76,20 @@ interface TLEnvelope<T> {
 // There is no separate "consent" API call - the user is sent straight to the
 // authorize link, and TrueLayer collects consent as part of that redirect.
 
-export function buildAuthorizeUrl(redirectUri: string, clientId: string, scope: string): string {
+export function buildAuthorizeUrl(redirectUri: string, clientId: string, scope: string, country?: string): string {
   const authUrl = new URL(`${TRUELAYER_AUTH}/`)
   authUrl.searchParams.set('response_type', 'code')
   authUrl.searchParams.set('client_id', clientId)
   authUrl.searchParams.set('redirect_uri', redirectUri)
   authUrl.searchParams.set('scope', scope)
-  // uk-cs-mock is the sandbox mock bank; uk-ob-all lets the user pick from
-  // every real UK Open Banking provider in live mode.
-  authUrl.searchParams.set('providers', IS_LIVE ? 'uk-ob-all' : 'uk-cs-mock')
+  // uk-cs-mock is the sandbox mock bank (country selection doesn't apply -
+  // sandbox only simulates a UK mock bank). In live mode, the chosen
+  // country picks the providers collection; TRUELAYER_PROVIDERS env var is
+  // the fallback when no/unknown country was passed.
+  const providers = IS_LIVE
+    ? (country && COUNTRY_PROVIDERS[country]?.providers) || process.env.TRUELAYER_PROVIDERS || COUNTRY_PROVIDERS.uk.providers
+    : 'uk-cs-mock'
+  authUrl.searchParams.set('providers', providers)
   return authUrl.toString()
 }
 
