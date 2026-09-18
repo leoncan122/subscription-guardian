@@ -14,7 +14,10 @@ export function RegisterSW() {
       ((typeof (navigator as any).standalone === "boolean") && (navigator as any).standalone);
     setIsPWA(inPWA);
 
-    if ("serviceWorker" in navigator) {
+    // Only register the caching service worker in production. In dev, its
+    // cache-first strategy for static assets serves stale JS chunks after
+    // every rebuild, breaking Turbopack/Fast Refresh module loading.
+    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
       navigator.serviceWorker
         .register(`${BASE_PATH}/sw.js`, { scope: `${BASE_PATH}/` })
         .then((registration) => {
@@ -47,6 +50,12 @@ export function RegisterSW() {
       window.addEventListener("appinstalled", () => {
         deferredPrompt = null;
         console.log("PWA installed");
+      });
+    } else if ("serviceWorker" in navigator) {
+      // Dev mode: unregister any service worker left over from a previous
+      // production build/test so it stops serving stale cached chunks.
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => registration.unregister());
       });
     }
 

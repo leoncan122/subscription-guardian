@@ -3,7 +3,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { BASE_PATH } from '@/lib/constants';
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -12,9 +11,9 @@ export default function Home() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        router.push(BASE_PATH + '/dashboard');
+        router.push('/dashboard');
       } else {
-        router.push(BASE_PATH + '/login');
+        router.push('/login');
       }
     }
   }, [user, loading, router]);

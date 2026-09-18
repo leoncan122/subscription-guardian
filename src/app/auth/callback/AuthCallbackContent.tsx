@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BASE_PATH } from '@/lib/constants';
 
 export default function AuthCallbackContent() {
   const router = useRouter();
@@ -11,10 +10,10 @@ export default function AuthCallbackContent() {
   useEffect(() => {
     const error = searchParams.get('error');
     if (error) {
-      router.push(BASE_PATH + '/login');
+      router.push('/login');
     } else {
       // OAuth callback completed, redirect to dashboard
-      router.push(BASE_PATH + '/dashboard');
+      router.push('/dashboard');
     }
   }, [router, searchParams]);
 

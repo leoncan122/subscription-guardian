@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import type { Session, User } from '@/lib/supabase/client'
+import { BASE_PATH } from '@/lib/constants'
 
 type AuthContextType = {
   user: User | null
@@ -45,7 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     if (!supabase) return
     await supabase.auth.signOut()
-    window.location.href = '/login'
+    window.location.href = BASE_PATH + '/login';
   }, [])
 
   return (
