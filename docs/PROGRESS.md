@@ -64,13 +64,25 @@ El flujo de "Connect with TrueLayer" existía en el código pero nunca había fu
 
 `.github/workflows/deploy.yml` desplegaba a GitHub Pages (hosting estático), incompatible con el trabajo de esta sesión (rutas API, `/callback`, middleware, sesión server-side vía cookies — nada de eso corre sin un runtime de Node). Se decidió mover el hosting a **Vercel**, que sí soporta todo esto de forma nativa. El workflow de GitHub Pages fue eliminado.
 
+Dominio de producción: `https://subscription-guardian-iota.vercel.app` (`basePath` se mantiene, así que la app vive bajo `/subscription-guardian`).
+
 **Pendiente al configurar Vercel:**
-- Cargar las env vars (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `TRUELAYER_CLIENT_ID`, `TRUELAYER_CLIENT_SECRET`) en el proyecto de Vercel.
-- Una vez que exista el dominio de Vercel, agregar la redirect URI correspondiente (`https://<dominio>/subscription-guardian/callback` — el `basePath` se mantiene) en el consent/console de TrueLayer.
-- El `basePath: "/subscription-guardian"` en `next.config.ts` se dejó tal cual (decisión explícita, no relacionada con el hosting).
+- Cargar las env vars (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `TRUELAYER_CLIENT_ID`, `TRUELAYER_CLIENT_SECRET`) en el proyecto de Vercel (Settings → Environment Variables).
+- Redirect URI de producción a registrar en la consola de TrueLayer (agregar, no reemplazar la de local): `https://subscription-guardian-iota.vercel.app/subscription-guardian/callback`. Se construye sola en runtime a partir del `origin` de cada request + `basePath`, no requiere cambios de código.
+
+### 7. Sandbox vs Live configurable (`src/lib/truelayer/client.ts`)
+
+Tras mover a Vercel, producción se cambió a **credenciales Live de TrueLayer** (bancos reales, no el mock `uk-cs-mock`). Como los dominios/`client_id`/`client_secret` de sandbox y live no son intercambiables (mezclarlos da "unknown client or client not enabled"), el ambiente ahora es configurable por variable de entorno en vez de estar hardcodeado a sandbox:
+
+- `TRUELAYER_ENV=live` → usa `auth.truelayer.com` / `api.truelayer.com` y `providers=uk-ob-all` (todos los bancos reales UK).
+- Cualquier otro valor (u omitida) → sandbox, como antes (`auth.truelayer-sandbox.com` / `api.truelayer-sandbox.com`, `providers=uk-cs-mock`).
+
+Así, desarrollo local sigue siendo sandbox por defecto (seguro para probar) aunque producción esté en Live. **En Vercel hay que setear `TRUELAYER_ENV=live` además de las credenciales Live** (`TRUELAYER_CLIENT_ID`/`TRUELAYER_CLIENT_SECRET` correspondientes a la app Live, no la de sandbox).
+
+Bug encontrado en el camino: el valor de `TRUELAYER_CLIENT_ID` en Vercel estaba puesto como el string literal `"TRUELAYER_CLIENT_ID"` (el nombre de la variable, no su valor) — causaba el mismo error "unknown client or client not enabled". Ya corregido por el usuario en el dashboard de Vercel.
 
 ### Pendiente / conocido
 
 - El "filtro por banco" en el dashboard usa `paymentMethod` (texto libre), no una referencia real a la conexión bancaria — con una sola cuenta de prueba no se puede validar bien la diferenciación entre bancos. Si se necesita distinguir bancos específicos, hay que guardar `connection_id` (o el nombre del proveedor) en `subscriptions` al confirmar.
-- El endpoint de revocación de token (`DELETE /api/delete` en `auth.truelayer-sandbox.com`) se implementó según la documentación pero no se verificó con una llamada real exitosa.
-- Falta validar el flujo completo con un banco no-mock (fuera de sandbox) — todo lo probado hasta ahora es contra `uk-cs-mock`.
+- El endpoint de revocación de token (`DELETE /api/delete`) se implementó según la documentación pero no se verificó con una llamada real exitosa.
+- Falta validar el flujo completo en Live con un banco real (todo lo probado hasta ahora fue contra el sandbox `uk-cs-mock`).
