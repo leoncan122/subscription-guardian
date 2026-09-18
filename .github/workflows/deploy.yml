@@ -34,6 +34,9 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_TRUELAYER_CLIENT_ID: ${{ secrets.TRUELAYER_CLIENT_ID }}
+          TRUELAYER_CLIENT_SECRET: ${{ secrets.TRUELAYER_CLIENT_SECRET }}
+          TRUELAYER_REDIRECT_URI: ${{ secrets.TRUELAYER_REDIRECT_URI }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

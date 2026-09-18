@@ -1,24 +1,42 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Subscription } from '@/types/subscription';
-import { getSubscriptions, addSubscription, updateSubscription, deleteSubscription, getBankConnections } from '@/lib/supabase/subscriptions';
+import { Subscription, Category } from '@/types/subscription';
+import {
+  getSubscriptions, addSubscription, updateSubscription, deleteSubscription,
+  getTrueLayerConnections, TrueLayerConnectionSummary, disconnectTrueLayerConnection,
+  getPendingDetectedSubscriptions, confirmDetectedSubscription, dismissDetectedSubscription, DetectedSubscriptionRow,
+  redetectSubscriptions,
+} from '@/lib/supabase/subscriptions';
 import { syncFromCloud, syncToCloud } from '@/lib/supabase/sync';
-import { connectBank, processBankingCallback, disconnectBank as disconnectBankFunc } from '@/lib/supabase/banking';
 import { Header, TabBar } from '@/components/Header';
 import { SubscriptionCard } from '@/components/SubscriptionCard';
 import { SummaryCard } from '@/components/SummaryCard';
 import { BASE_PATH } from '@/lib/constants';
+import { getCategoryColor } from '@/utils/helpers';
+
+function groupByCategory(items: DetectedSubscriptionRow[]): Record<string, DetectedSubscriptionRow[]> {
+  return items.reduce<Record<string, DetectedSubscriptionRow[]>>((groups, item) => {
+    const key = item.category || 'other';
+    (groups[key] ||= []).push(item);
+    return groups;
+  }, {});
+}
 
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut: logout } = useAuth();
+  const router = useRouter();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [bankConnections, setBankConnections] = useState<any[]>([]);
+  const [bankConnections, setBankConnections] = useState<TrueLayerConnectionSummary[]>([]);
+  const [detectedSubs, setDetectedSubs] = useState<DetectedSubscriptionRow[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [showBankConnect, setShowBankConnect] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -33,18 +51,31 @@ export default function DashboardPage() {
 
     const loadData = async () => {
       setLoading(true);
-      try {
-        const [subs, banks] = await Promise.all([
-          getSubscriptions(),
-          getBankConnections(),
-        ]);
-        setSubscriptions(subs);
-        setBankConnections(banks);
-      } catch (error) {
-        console.error('Failed to load data:', error);
-      } finally {
-        setLoading(false);
+      const [subsResult, banksResult, detectedResult] = await Promise.allSettled([
+        getSubscriptions(),
+        getTrueLayerConnections(),
+        getPendingDetectedSubscriptions(),
+      ]);
+
+      if (subsResult.status === 'fulfilled') {
+        setSubscriptions(subsResult.value);
+      } else {
+        console.error('Failed to load subscriptions:', subsResult.reason);
       }
+
+      if (banksResult.status === 'fulfilled') {
+        setBankConnections(banksResult.value);
+      } else {
+        console.error('Failed to load bank connections:', banksResult.reason);
+      }
+
+      if (detectedResult.status === 'fulfilled') {
+        setDetectedSubs(detectedResult.value);
+      } else {
+        console.error('Failed to load detected subscriptions:', detectedResult.reason);
+      }
+
+      setLoading(false);
     };
 
     loadData();
@@ -86,6 +117,72 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDismissAccount = async (connectionId: string) => {
+    if (!confirm('Disconnect this bank account?')) return;
+    const disconnected = await disconnectTrueLayerConnection(connectionId);
+    if (disconnected) {
+      setBankConnections(prev => prev.filter(c => c.id !== connectionId));
+    } else {
+      alert('Failed to disconnect bank account');
+    }
+  };
+
+  const handleCheckSubscriptions = async (connectionId: string) => {
+    setSyncing(true);
+    try {
+      const ok = await redetectSubscriptions(connectionId);
+      if (ok) {
+        const pending = await getPendingDetectedSubscriptions();
+        setDetectedSubs(pending);
+      } else {
+        alert('Failed to check for subscriptions');
+      }
+    } catch (error) {
+      console.error('Failed to check for subscriptions:', error);
+      alert('Failed to check for subscriptions');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleConfirmDetected = async (detected: DetectedSubscriptionRow) => {
+    try {
+      const newSub = await confirmDetectedSubscription(detected);
+      if (newSub) {
+        setDetectedSubs(prev => prev.filter(d => d.id !== detected.id));
+        setSubscriptions(prev => [...prev, newSub]);
+      } else {
+        alert('Failed to confirm subscription');
+      }
+    } catch (error) {
+      console.error('Failed to confirm subscription:', error);
+      alert('Failed to confirm subscription');
+    }
+  };
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  };
+
+  const handleDismissDetected = async (id: string) => {
+    try {
+      const dismissed = await dismissDetectedSubscription(id);
+      if (dismissed) {
+        setDetectedSubs(prev => prev.filter(d => d.id !== id));
+      } else {
+        alert('Failed to dismiss subscription');
+      }
+    } catch (error) {
+      console.error('Failed to dismiss subscription:', error);
+      alert('Failed to dismiss subscription');
+    }
+  };
+
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -103,17 +200,6 @@ export default function DashboardPage() {
       alert('Sync failed');
     } finally {
       setSyncing(false);
-    }
-  };
-
-  const handleConnectBank = async () => {
-    try {
-      const result = await connectBank('test', 'Test Bank');
-      // In production, this would redirect to the bank's OAuth page
-      console.log('Bank connection result:', result);
-    } catch (error) {
-      console.error('Failed to connect bank:', error);
-      alert('Failed to connect to bank');
     }
   };
 
@@ -138,6 +224,13 @@ export default function DashboardPage() {
     return daysUntil >= 0 && daysUntil <= 7;
   }).length;
 
+  const availableCategories = [...new Set(subscriptions.map(s => s.category))].sort();
+  const availablePaymentMethods = [...new Set(subscriptions.map(s => s.paymentMethod).filter(Boolean))].sort();
+  const filteredSubscriptions = subscriptions.filter(s =>
+    (categoryFilter === 'all' || s.category === categoryFilter) &&
+    (paymentMethodFilter === 'all' || s.paymentMethod === paymentMethodFilter)
+  );
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -154,7 +247,7 @@ export default function DashboardPage() {
       <Header onLogout={logout} />
 
       {/* Bank connection banner */}
-      {bankConnections.length === 0 && !showBankConnect && (
+      {bankConnections.length === 0 ? (
         <div className="p-4">
           <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-800 rounded-xl p-4">
             <div className="flex items-center justify-between">
@@ -165,7 +258,7 @@ export default function DashboardPage() {
                 </p>
               </div>
               <button
-                onClick={() => setShowBankConnect(true)}
+                onClick={() => router.push('/connect-bank')}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
               >
                 Connect
@@ -173,32 +266,103 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Bank connect form */}
-      {showBankConnect && (
-        <div className="p-4">
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-white">Select Your Bank</h3>
+      ) : (
+        <div className="p-4 space-y-3">
+          {bankConnections.map((conn) => (
+            <div key={conn.id} className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold text-white text-sm">🏦 Bank Connected</h3>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-500">
+                    {conn.last_synced_at ? `Synced ${new Date(conn.last_synced_at).toLocaleDateString()}` : 'Not synced yet'}
+                  </span>
+                  <button
+                    onClick={() => handleDismissAccount(conn.id)}
+                    className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">
+                {conn.accounts.length === 0
+                  ? 'No accounts found yet'
+                  : `${conn.accounts.length} account${conn.accounts.length === 1 ? '' : 's'} linked`}
+              </p>
               <button
-                onClick={() => setShowBankConnect(false)}
-                className="text-gray-400 hover:text-white text-sm"
+                onClick={() => handleCheckSubscriptions(conn.id)}
+                disabled={syncing}
+                className="w-full mt-3 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 text-xs rounded-lg transition-colors"
               >
-                Cancel
+                {syncing ? 'Checking…' : '🔄 Check for subscriptions'}
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {['Santander', 'BBVA', 'CaixaBank', 'Sabadell', 'ING', 'N26', 'Revolut', 'Other'].map((bank) => (
-                <button
-                  key={bank}
-                  onClick={handleConnectBank}
-                  className="p-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-white text-sm transition-colors"
-                >
-                  {bank}
-                </button>
-              ))}
-            </div>
+          ))}
+          <button
+            onClick={() => router.push('/connect-bank')}
+            className="w-full py-2 border border-dashed border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 text-sm rounded-lg transition-colors"
+          >
+            + Connect another bank
+          </button>
+        </div>
+      )}
+
+      {/* Detected subscriptions pending review, grouped by category */}
+      {detectedSubs.length > 0 && (
+        <div className="p-4">
+          <h2 className="text-lg font-semibold text-white mb-3">
+            🔍 Detected Subscriptions ({detectedSubs.length})
+          </h2>
+          <div className="space-y-2">
+            {Object.entries(groupByCategory(detectedSubs)).map(([category, items]) => {
+              const isOpen = expandedCategories.has(category);
+              return (
+                <div key={category} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                  <button
+                    onClick={() => toggleCategory(category)}
+                    className="w-full flex items-center justify-between p-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryColor(category as Category)}`}>
+                        {category}
+                      </span>
+                      <span className="text-xs text-gray-500">({items.length})</span>
+                    </div>
+                    <span className="text-gray-500 text-xs">{isOpen ? '▲' : '▼'}</span>
+                  </button>
+                  {isOpen && (
+                    <div className="space-y-2 p-3 pt-0">
+                      {items.map((d) => (
+                        <div key={d.id} className="bg-gray-800/50 rounded-xl p-4 border border-gray-800">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <p className="text-white font-medium text-sm">{d.merchant_name}</p>
+                              <p className="text-xs text-gray-400">
+                                {d.amount.toFixed(2)} {d.currency} · {d.billing_cycle} · seen {d.occurrence_count}x
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleConfirmDetected(d)}
+                              className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              onClick={() => handleDismissDetected(d.id)}
+                              className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded-lg transition-colors"
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -248,9 +412,37 @@ export default function DashboardPage() {
 
         {/* Subscriptions list */}
         <div>
-          <h2 className="text-lg font-semibold text-white mb-3">
-            Your Subscriptions ({subscriptions.length})
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-white">
+              Your Subscriptions ({filteredSubscriptions.length}{filteredSubscriptions.length !== subscriptions.length ? ` of ${subscriptions.length}` : ''})
+            </h2>
+          </div>
+
+          {subscriptions.length > 0 && (
+            <div className="flex gap-2 mb-3">
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="flex-1 bg-gray-800 text-gray-300 text-xs px-2 py-2 rounded-lg border border-gray-700 focus:outline-none focus:border-blue-500"
+              >
+                <option value="all">All categories</option>
+                {availableCategories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <select
+                value={paymentMethodFilter}
+                onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                className="flex-1 bg-gray-800 text-gray-300 text-xs px-2 py-2 rounded-lg border border-gray-700 focus:outline-none focus:border-blue-500"
+              >
+                <option value="all">All banks / payment methods</option>
+                {availablePaymentMethods.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {subscriptions.length === 0 ? (
             <div className="text-center py-8">
               <span className="text-4xl mb-3 block">📭</span>
@@ -262,9 +454,11 @@ export default function DashboardPage() {
                 Add First Subscription
               </button>
             </div>
+          ) : filteredSubscriptions.length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-8">No subscriptions match this filter</p>
           ) : (
             <div className="space-y-3">
-              {subscriptions.map((sub) => (
+              {filteredSubscriptions.map((sub) => (
                 <SubscriptionCard
                   key={sub.id}
                   subscription={sub}

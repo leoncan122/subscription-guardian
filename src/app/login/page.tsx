@@ -21,7 +21,7 @@ export default function Login() {
       if (!supabase) throw new Error('Supabase not configured')
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
-      router.push(BASE_PATH + '/dashboard')
+      router.push('/dashboard')
       router.refresh()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido'
@@ -118,7 +118,7 @@ export default function Login() {
         <p className="text-center text-slate-400 mt-6">
           ¿No tienes cuenta?{' '}
           <button
-            onClick={() => router.push(BASE_PATH + '/register')}
+            onClick={() => router.push('/register')}
             className="text-blue-400 hover:text-blue-300 font-medium"
           >
             Registrarse
