@@ -60,13 +60,14 @@ El flujo de "Connect with TrueLayer" existía en el código pero nunca había fu
 - Service worker (`public/sw.js`) causaba errores de chunks stale en desarrollo (`next dev` + Turbopack) por cachear JS de forma agresiva; ahora solo se registra en producción, y se desregistra automáticamente si detecta uno instalado durante desarrollo.
 - Manejo de errores: varias funciones (`syncAccounts`, `detectSubscriptions`, confirmar/descartar detectadas) tragaban errores de Supabase en silencio (`if (data && !error)` sin loguear el caso contrario) — ahora todas loguean con `console.error`/`console.warn`.
 
-### ⚠️ Bloqueante antes de mergear a `master`: deploy target no coincide con el código
+### Deploy: se mueve de GitHub Pages a Vercel
 
-`.github/workflows/deploy.yml` despliega a **GitHub Pages** (hosting 100% estático, sin Node.js) subiendo el directorio `./out`. Pero `next.config.ts` tiene `output: "standalone"` (modo servidor) — con esa config, `npm run build` **no genera `./out`**, así que el deploy fallaría directamente.
+`.github/workflows/deploy.yml` desplegaba a GitHub Pages (hosting estático), incompatible con el trabajo de esta sesión (rutas API, `/callback`, middleware, sesión server-side vía cookies — nada de eso corre sin un runtime de Node). Se decidió mover el hosting a **Vercel**, que sí soporta todo esto de forma nativa. El workflow de GitHub Pages fue eliminado.
 
-Y aunque se corrigiera eso: **todo lo construido en esta sesión requiere servidor** — las rutas API (`/api/auth/truelayer`, `/callback`, `/api/truelayer/detect`, `/api/truelayer/disconnect`), `src/middleware.ts`, y el cliente de Supabase server-side con cookies. Nada de eso puede correr en GitHub Pages. Esto no es algo que se pueda resolver con un ajuste de config — es una decisión de dónde hostear la app (ej. Vercel, un VPS, Railway, etc., cualquiera con runtime de Node) antes de que esta integración funcione en producción.
-
-No lo cambié yo porque no es mi decisión tomar — pero **no mergear a `master` sin resolver esto primero**, o el deploy a producción se rompe.
+**Pendiente al configurar Vercel:**
+- Cargar las env vars (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `TRUELAYER_CLIENT_ID`, `TRUELAYER_CLIENT_SECRET`) en el proyecto de Vercel.
+- Una vez que exista el dominio de Vercel, agregar la redirect URI correspondiente (`https://<dominio>/subscription-guardian/callback` — el `basePath` se mantiene) en el consent/console de TrueLayer.
+- El `basePath: "/subscription-guardian"` en `next.config.ts` se dejó tal cual (decisión explícita, no relacionada con el hosting).
 
 ### Pendiente / conocido
 
