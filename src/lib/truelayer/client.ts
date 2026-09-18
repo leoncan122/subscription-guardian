@@ -1,7 +1,15 @@
 // TrueLayer Data API client - Server-side only
 // Reference: https://docs.truelayer.com/docs/data-api-basics
-const TRUELAYER_AUTH = 'https://auth.truelayer-sandbox.com'
-const TRUELAYER_API = 'https://api.truelayer-sandbox.com'
+//
+// Sandbox vs live is controlled by TRUELAYER_ENV, not hardcoded, so local
+// dev always stays on sandbox (mock banks, safe to test against) even when
+// production is configured for live (real banks, real client credentials).
+// Sandbox and live client_id/client_secret are not interchangeable - mixing
+// a live client_id with the sandbox domain (or vice versa) fails with
+// "unknown client or client not enabled".
+const IS_LIVE = process.env.TRUELAYER_ENV === 'live'
+const TRUELAYER_AUTH = IS_LIVE ? 'https://auth.truelayer.com' : 'https://auth.truelayer-sandbox.com'
+const TRUELAYER_API = IS_LIVE ? 'https://api.truelayer.com' : 'https://api.truelayer-sandbox.com'
 
 export interface TLTokenResponse {
   access_token: string
@@ -64,7 +72,9 @@ export function buildAuthorizeUrl(redirectUri: string, clientId: string, scope: 
   authUrl.searchParams.set('client_id', clientId)
   authUrl.searchParams.set('redirect_uri', redirectUri)
   authUrl.searchParams.set('scope', scope)
-  authUrl.searchParams.set('providers', 'uk-cs-mock')
+  // uk-cs-mock is the sandbox mock bank; uk-ob-all lets the user pick from
+  // every real UK Open Banking provider in live mode.
+  authUrl.searchParams.set('providers', IS_LIVE ? 'uk-ob-all' : 'uk-cs-mock')
   return authUrl.toString()
 }
 
