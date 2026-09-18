@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { BASE_PATH } from '@/lib/constants';
+import { BASE_PATH, TRUELAYER_COUNTRIES } from '@/lib/constants';
 
 export default function ConnectBankPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const [country, setCountry] = useState<string>(TRUELAYER_COUNTRIES[0].code);
 
   useEffect(() => {
     if (authLoading) return;
@@ -48,9 +49,30 @@ export default function ConnectBankPage() {
           </div>
         </div>
 
+        {/* Bank country selector */}
+        <div>
+          <label className="text-xs text-gray-400">¿Dónde está tu banco?</label>
+          <div className="flex gap-2 mt-2">
+            {TRUELAYER_COUNTRIES.map((c) => (
+              <button
+                key={c.code}
+                type="button"
+                onClick={() => setCountry(c.code)}
+                className={`flex-1 py-3 rounded-xl border text-sm font-medium transition-colors ${
+                  country === c.code
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-600'
+                }`}
+              >
+                {c.flag} {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* TrueLayer connect button */}
         <a
-          href={`${BASE_PATH}/api/auth/truelayer`}
+          href={`${BASE_PATH}/api/auth/truelayer?country=${country}`}
           className="w-full block py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-center transition-colors"
         >
           <div className="flex items-center justify-center gap-3">
