@@ -64,10 +64,11 @@ El flujo de "Connect with TrueLayer" existía en el código pero nunca había fu
 
 `.github/workflows/deploy.yml` desplegaba a GitHub Pages (hosting estático), incompatible con el trabajo de esta sesión (rutas API, `/callback`, middleware, sesión server-side vía cookies — nada de eso corre sin un runtime de Node). Se decidió mover el hosting a **Vercel**, que sí soporta todo esto de forma nativa. El workflow de GitHub Pages fue eliminado.
 
+Dominio de producción: `https://subscription-guardian-iota.vercel.app` (`basePath` se mantiene, así que la app vive bajo `/subscription-guardian`).
+
 **Pendiente al configurar Vercel:**
-- Cargar las env vars (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `TRUELAYER_CLIENT_ID`, `TRUELAYER_CLIENT_SECRET`) en el proyecto de Vercel.
-- Una vez que exista el dominio de Vercel, agregar la redirect URI correspondiente (`https://<dominio>/subscription-guardian/callback` — el `basePath` se mantiene) en el consent/console de TrueLayer.
-- El `basePath: "/subscription-guardian"` en `next.config.ts` se dejó tal cual (decisión explícita, no relacionada con el hosting).
+- Cargar las env vars (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `TRUELAYER_CLIENT_ID`, `TRUELAYER_CLIENT_SECRET`) en el proyecto de Vercel (Settings → Environment Variables).
+- Redirect URI de producción a registrar en la consola de TrueLayer (agregar, no reemplazar la de local): `https://subscription-guardian-iota.vercel.app/subscription-guardian/callback`. Se construye sola en runtime a partir del `origin` de cada request + `basePath`, no requiere cambios de código.
 
 ### Pendiente / conocido
 
