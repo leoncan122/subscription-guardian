@@ -80,29 +80,31 @@ export async function deleteSubscription(id: string): Promise<boolean> {
   return !error
 }
 
-export interface TrueLayerConnectionSummary {
+// Shared shape for the dashboard's bank-connection cards, regardless of
+// which provider (TrueLayer or GoCardless) the connection came from.
+export interface BankConnectionSummary {
   id: string
+  provider: 'truelayer' | 'gocardless'
   status: string
   last_synced_at: string | null
   created_at: string
   accounts: Array<{
     id: string
-    true_layer_account_id: string
-    account_label: string | null
+    label: string | null
     currency: string | null
     balance_amount: number | null
     balance_currency: string | null
   }>
 }
 
-export async function getTrueLayerConnections(): Promise<TrueLayerConnectionSummary[]> {
+export async function getTrueLayerConnections(): Promise<BankConnectionSummary[]> {
   if (!supabase) return []
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
   const { data, error } = await supabase
     .from('truelayer_connections')
-    .select('id, status, last_synced_at, created_at, truelayer_accounts(id, true_layer_account_id, account_label, currency, balance_amount, balance_currency)')
+    .select('id, status, last_synced_at, created_at, truelayer_accounts(id, account_label, currency, balance_amount, balance_currency)')
     .eq('user_id', user.id)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
@@ -110,11 +112,55 @@ export async function getTrueLayerConnections(): Promise<TrueLayerConnectionSumm
   if (error) throw error
   return (data || []).map((conn) => ({
     id: conn.id,
+    provider: 'truelayer' as const,
     status: conn.status,
     last_synced_at: conn.last_synced_at,
     created_at: conn.created_at,
-    accounts: conn.truelayer_accounts || [],
+    accounts: (conn.truelayer_accounts || []).map((a) => ({
+      id: a.id,
+      label: a.account_label,
+      currency: a.currency,
+      balance_amount: a.balance_amount,
+      balance_currency: a.balance_currency,
+    })),
   }))
+}
+
+export async function getGoCardlessConnections(): Promise<BankConnectionSummary[]> {
+  if (!supabase) return []
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('gocardless_connections')
+    .select('id, status, last_synced_at, created_at, gocardless_accounts(id, account_label, currency, balance_amount, balance_currency)')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return (data || []).map((conn) => ({
+    id: conn.id,
+    provider: 'gocardless' as const,
+    status: conn.status,
+    last_synced_at: conn.last_synced_at,
+    created_at: conn.created_at,
+    accounts: (conn.gocardless_accounts || []).map((a) => ({
+      id: a.id,
+      label: a.account_label,
+      currency: a.currency,
+      balance_amount: a.balance_amount,
+      balance_currency: a.balance_currency,
+    })),
+  }))
+}
+
+export async function getBankConnections(): Promise<BankConnectionSummary[]> {
+  const [truelayer, gocardless] = await Promise.all([
+    getTrueLayerConnections(),
+    getGoCardlessConnections(),
+  ])
+  return [...truelayer, ...gocardless].sort((a, b) => b.created_at.localeCompare(a.created_at))
 }
 
 export interface DetectedSubscriptionRow {
@@ -223,9 +269,9 @@ function nextRenewalDate(lastSeen: string | null, cycle: BillingCycle): string {
   return base.toISOString().split('T')[0]
 }
 
-export async function redetectSubscriptions(connectionId: string): Promise<boolean> {
+export async function redetectSubscriptions(connectionId: string, provider: 'truelayer' | 'gocardless' = 'truelayer'): Promise<boolean> {
   try {
-    const res = await fetch(`${BASE_PATH}/api/truelayer/detect`, {
+    const res = await fetch(`${BASE_PATH}/api/${provider}/detect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ connectionId }),
@@ -236,9 +282,9 @@ export async function redetectSubscriptions(connectionId: string): Promise<boole
   }
 }
 
-export async function disconnectTrueLayerConnection(connectionId: string): Promise<boolean> {
+export async function disconnectBankConnection(connectionId: string, provider: 'truelayer' | 'gocardless' = 'truelayer'): Promise<boolean> {
   try {
-    const res = await fetch(`${BASE_PATH}/api/truelayer/disconnect`, {
+    const res = await fetch(`${BASE_PATH}/api/${provider}/disconnect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ connectionId }),

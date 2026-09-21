@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Subscription, Category } from '@/types/subscription';
 import {
   getSubscriptions, addSubscription, updateSubscription, deleteSubscription,
-  getTrueLayerConnections, TrueLayerConnectionSummary, disconnectTrueLayerConnection,
+  getBankConnections, BankConnectionSummary, disconnectBankConnection,
   getPendingDetectedSubscriptions, confirmDetectedSubscription, dismissDetectedSubscription, DetectedSubscriptionRow,
   redetectSubscriptions,
 } from '@/lib/supabase/subscriptions';
@@ -29,7 +29,7 @@ export default function DashboardPage() {
   const { user, loading: authLoading, signOut: logout } = useAuth();
   const router = useRouter();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [bankConnections, setBankConnections] = useState<TrueLayerConnectionSummary[]>([]);
+  const [bankConnections, setBankConnections] = useState<BankConnectionSummary[]>([]);
   const [detectedSubs, setDetectedSubs] = useState<DetectedSubscriptionRow[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -53,7 +53,7 @@ export default function DashboardPage() {
       setLoading(true);
       const [subsResult, banksResult, detectedResult] = await Promise.allSettled([
         getSubscriptions(),
-        getTrueLayerConnections(),
+        getBankConnections(),
         getPendingDetectedSubscriptions(),
       ]);
 
@@ -117,9 +117,9 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDismissAccount = async (connectionId: string) => {
+  const handleDismissAccount = async (connectionId: string, provider: 'truelayer' | 'gocardless') => {
     if (!confirm('Disconnect this bank account?')) return;
-    const disconnected = await disconnectTrueLayerConnection(connectionId);
+    const disconnected = await disconnectBankConnection(connectionId, provider);
     if (disconnected) {
       setBankConnections(prev => prev.filter(c => c.id !== connectionId));
     } else {
@@ -127,10 +127,10 @@ export default function DashboardPage() {
     }
   };
 
-  const handleCheckSubscriptions = async (connectionId: string) => {
+  const handleCheckSubscriptions = async (connectionId: string, provider: 'truelayer' | 'gocardless') => {
     setSyncing(true);
     try {
-      const ok = await redetectSubscriptions(connectionId);
+      const ok = await redetectSubscriptions(connectionId, provider);
       if (ok) {
         const pending = await getPendingDetectedSubscriptions();
         setDetectedSubs(pending);
@@ -269,15 +269,17 @@ export default function DashboardPage() {
       ) : (
         <div className="p-4 space-y-3">
           {bankConnections.map((conn) => (
-            <div key={conn.id} className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+            <div key={`${conn.provider}-${conn.id}`} className="bg-gray-900 rounded-xl p-4 border border-gray-800">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-white text-sm">🏦 Bank Connected</h3>
+                <h3 className="font-semibold text-white text-sm">
+                  🏦 Bank Connected <span className="text-gray-500 font-normal">({conn.provider === 'truelayer' ? 'TrueLayer' : 'GoCardless'})</span>
+                </h3>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-gray-500">
                     {conn.last_synced_at ? `Synced ${new Date(conn.last_synced_at).toLocaleDateString()}` : 'Not synced yet'}
                   </span>
                   <button
-                    onClick={() => handleDismissAccount(conn.id)}
+                    onClick={() => handleDismissAccount(conn.id, conn.provider)}
                     className="text-xs text-gray-500 hover:text-red-400 transition-colors"
                   >
                     Dismiss
@@ -290,7 +292,7 @@ export default function DashboardPage() {
                   : `${conn.accounts.length} account${conn.accounts.length === 1 ? '' : 's'} linked`}
               </p>
               <button
-                onClick={() => handleCheckSubscriptions(conn.id)}
+                onClick={() => handleCheckSubscriptions(conn.id, conn.provider)}
                 disabled={syncing}
                 className="w-full mt-3 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 text-xs rounded-lg transition-colors"
               >

@@ -5,10 +5,19 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { BASE_PATH, TRUELAYER_COUNTRIES } from '@/lib/constants';
 
+interface GCInstitution {
+  id: string;
+  name: string;
+  logo: string;
+}
+
 export default function ConnectBankPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [country, setCountry] = useState<string>(TRUELAYER_COUNTRIES[0].code);
+  const [institutions, setInstitutions] = useState<GCInstitution[]>([]);
+  const [selectedInstitution, setSelectedInstitution] = useState('');
+  const [loadingInstitutions, setLoadingInstitutions] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -16,6 +25,34 @@ export default function ConnectBankPage() {
       router.push('/login');
     }
   }, [user, authLoading, router]);
+
+  // GoCardless needs the institution picked up front (unlike TrueLayer,
+  // which has its own hosted bank-search page), so fetch the list whenever
+  // the selected country changes.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    const loadInstitutions = async () => {
+      setLoadingInstitutions(true);
+      setSelectedInstitution('');
+      try {
+        const res = await fetch(`${BASE_PATH}/api/gocardless/institutions?country=${country}`);
+        const data = await res.json();
+        if (cancelled) return;
+        const list: GCInstitution[] = data.institutions || [];
+        setInstitutions(list);
+        setSelectedInstitution(list[0]?.id || '');
+      } catch {
+        if (!cancelled) setInstitutions([]);
+      } finally {
+        if (!cancelled) setLoadingInstitutions(false);
+      }
+    };
+
+    loadInstitutions();
+    return () => { cancelled = true; };
+  }, [country, user]);
 
   if (authLoading) {
     return (
@@ -80,6 +117,53 @@ export default function ConnectBankPage() {
             <span>Connect with TrueLayer</span>
           </div>
         </a>
+
+        {/* GoCardless alternative */}
+        <div className="pt-2">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="flex-1 h-px bg-gray-800" />
+            <span className="text-gray-500 text-xs">o alternativamente</span>
+            <div className="flex-1 h-px bg-gray-800" />
+          </div>
+
+          <div className="bg-green-900/20 border border-green-800 rounded-xl p-4 mb-4">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">🔒</span>
+              <div>
+                <h3 className="font-semibold text-white text-sm">GoCardless Bank Account Data</h3>
+                <p className="text-xs text-green-200 mt-1">
+                  Otro proveedor de Open Banking de solo lectura, como alternativa a TrueLayer. Elige tu banco de la lista.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {institutions.length > 0 && (
+            <select
+              value={selectedInstitution}
+              onChange={(e) => setSelectedInstitution(e.target.value)}
+              className="w-full mb-3 bg-gray-900 border border-gray-800 text-gray-300 text-sm px-3 py-3 rounded-xl focus:outline-none focus:border-green-500"
+            >
+              {institutions.map((inst) => (
+                <option key={inst.id} value={inst.id}>{inst.name}</option>
+              ))}
+            </select>
+          )}
+
+          <a
+            href={selectedInstitution ? `${BASE_PATH}/api/auth/gocardless?institution_id=${selectedInstitution}` : undefined}
+            className={`w-full block py-4 rounded-xl font-medium text-center transition-colors ${
+              selectedInstitution
+                ? 'bg-green-600 hover:bg-green-700 text-white'
+                : 'bg-gray-800 text-gray-500 pointer-events-none'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-2xl">🏦</span>
+              <span>{loadingInstitutions ? 'Cargando bancos…' : 'Connect with GoCardless'}</span>
+            </div>
+          </a>
+        </div>
 
         {/* Back button */}
         <button

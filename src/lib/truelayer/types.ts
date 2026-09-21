@@ -31,6 +31,7 @@ export interface DetectedSubscription {
   id: string
   user_id: string
   connection_id: string
+  provider: 'truelayer' | 'gocardless'
   merchant_name: string
   amount: number
   currency: string

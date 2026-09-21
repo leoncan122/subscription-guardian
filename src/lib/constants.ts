@@ -9,3 +9,10 @@ export const TRUELAYER_COUNTRIES = [
   { code: 'uk', label: 'United Kingdom', flag: '🇬🇧' },
   { code: 'es', label: 'España', flag: '🇪🇸' },
 ] as const
+
+// ISO 3166-1 alpha-2 codes GoCardless's institutions endpoint expects, keyed
+// by the same country codes used above for TrueLayer.
+export const GOCARDLESS_COUNTRY_ISO: Record<string, string> = {
+  uk: 'GB',
+  es: 'ES',
+}
