@@ -249,16 +249,20 @@ function nextRenewalDate(lastSeen: string | null, cycle: BillingCycle): string {
   return base.toISOString().split('T')[0]
 }
 
-export async function redetectSubscriptions(connectionId: string): Promise<boolean> {
+export type RedetectResult = 'ok' | 'reconnect_required' | 'failed'
+
+export async function redetectSubscriptions(connectionId: string): Promise<RedetectResult> {
   try {
     const res = await fetch(`${BASE_PATH}/api/truelayer/detect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ connectionId }),
     })
-    return res.ok
+    if (res.ok) return 'ok'
+    const body = await res.json().catch(() => null)
+    return body?.code === 'reconnect_required' ? 'reconnect_required' : 'failed'
   } catch {
-    return false
+    return 'failed'
   }
 }
 

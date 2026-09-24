@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import * as TL from '@/lib/truelayer/client'
-import { detectSubscriptions } from '@/lib/truelayer/service'
+import { detectSubscriptions, markConnectionExpired, ReconnectRequiredError } from '@/lib/truelayer/service'
 import { createClient } from '@/lib/supabase/server'
 import { getClientIp } from '@/lib/request-ip'
 
@@ -24,7 +24,20 @@ export async function POST(request: Request) {
     }
 
     // Detect subscriptions from bank transactions
-    const detected = await detectSubscriptions(supabase, user.id, connectionId, ctx)
+    let detected
+    try {
+      detected = await detectSubscriptions(supabase, user.id, connectionId, ctx)
+    } catch (error) {
+      if (!(error instanceof ReconnectRequiredError)) throw error
+      // The bank access is gone for good - retire this connection and tell
+      // the client to send the user through the connect flow again.
+      console.warn(`[truelayer/detect ${ctx.correlationId}] reconnect required:`, error.message)
+      await markConnectionExpired(supabase, user.id, connectionId)
+      return NextResponse.json(
+        { error: 'Bank access expired - reconnect your bank', code: 'reconnect_required' },
+        { status: 409 }
+      )
+    }
 
     return NextResponse.json({
       success: true,

@@ -96,12 +96,23 @@ export function buildAuthorizeUrl(redirectUri: string, clientId: string, scope: 
 // Builds an Error with the full response body TrueLayer sent back, instead
 // of silently falling back to a generic message when error_description
 // isn't present (their error shape isn't consistent across endpoints).
-async function tlError(res: Response, fallback: string): Promise<Error> {
+// Error from a TrueLayer call. `code` is the OAuth/API error code when the
+// body had one (e.g. "invalid_grant"), for callers that branch on it.
+export class TLError extends Error {
+  constructor(message: string, readonly status: number, readonly code?: string) {
+    super(message)
+    this.name = 'TLError'
+  }
+}
+
+async function tlError(res: Response, fallback: string): Promise<TLError> {
   const text = await res.text().catch(() => '')
   let detail = text
+  let code: string | undefined
   try {
     const parsed = JSON.parse(text)
     detail = parsed.error_description || parsed.error || text
+    code = typeof parsed.error === 'string' ? parsed.error : undefined
   } catch {
     // not JSON - use the raw text as-is
   }
@@ -110,7 +121,7 @@ async function tlError(res: Response, fallback: string): Promise<Error> {
     status: res.status,
     body: text || '<empty response body>',
   })
-  return new Error(`${fallback} (HTTP ${res.status}): ${detail || '<empty response body>'}`)
+  return new TLError(`${fallback} (HTTP ${res.status}): ${detail || '<empty response body>'}`, res.status, code)
 }
 
 export async function getToken(code: string, redirectUri: string, clientId: string, clientSecret: string): Promise<TLTokenResponse> {

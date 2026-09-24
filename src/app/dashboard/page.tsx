@@ -159,10 +159,17 @@ export default function DashboardPage() {
   const handleCheckSubscriptions = async (connectionId: string) => {
     setSyncing(true);
     try {
-      const ok = await redetectSubscriptions(connectionId);
-      if (ok) {
+      const result = await redetectSubscriptions(connectionId);
+      if (result === 'ok') {
         const pending = await getPendingDetectedSubscriptions();
         setDetectedSubs(pending);
+      } else if (result === 'reconnect_required') {
+        // The server retired this connection; drop it and its pending items.
+        setBankConnections(prev => prev.filter(c => c.id !== connectionId));
+        setDetectedSubs(await getPendingDetectedSubscriptions());
+        if (confirm('Your bank access has expired. Reconnect your bank now?')) {
+          router.push('/connect-bank');
+        }
       } else {
         alert('Failed to check for subscriptions');
       }
