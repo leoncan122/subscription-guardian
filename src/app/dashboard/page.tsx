@@ -398,7 +398,9 @@ export default function DashboardPage() {
           {bankConnections.map((conn) => (
             <div key={conn.id} className="bg-gray-900 rounded-xl p-4 border border-gray-800">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-white text-sm">{t('dashboard.bankConnected')}</h3>
+                <h3 className="font-semibold text-white text-sm">
+                  {conn.provider_name ? `🏦 ${conn.provider_name}` : t('dashboard.bankConnected')}
+                </h3>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-gray-500">
                     {conn.last_synced_at

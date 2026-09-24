@@ -78,7 +78,8 @@ export async function GET(request: Request) {
       me.credentials_id,
       tokenData.access_token,
       tokenData.refresh_token,
-      tokenData.expires_in
+      tokenData.expires_in,
+      me.provider
     )
     console.log('[truelayer/callback] connection saved', { correlationId: ctx.correlationId, connectionId: connection.id })
 
