@@ -19,6 +19,7 @@ import { getCategoryColor, formatCurrency } from '@/utils/helpers';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useFxRates, monthlyTotalInBase } from '@/lib/fx';
 import { getCountry } from '@/lib/locale';
+import { useTranslation, categoryLabel, billingCycleLabel } from '@/i18n';
 
 const CURRENCY_SUGGESTION_DISMISSED_KEY = 'sg:currency-suggestion-dismissed';
 
@@ -56,6 +57,7 @@ export default function DashboardPage() {
   const { user, loading: authLoading, signOut: logout } = useAuth();
   const router = useRouter();
   const { settings, loading: settingsLoading, updateSettings } = useSettings();
+  const { t } = useTranslation();
   const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(readDismissedSuggestion);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [bankConnections, setBankConnections] = useState<TrueLayerConnectionSummary[]>([]);
@@ -118,7 +120,7 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Failed to add subscription:', error);
-      alert('Failed to add subscription');
+      alert(t('dashboardAlerts.addFailed'));
     }
   };
 
@@ -130,7 +132,7 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Failed to update subscription:', error);
-      alert('Failed to update subscription');
+      alert(t('dashboardAlerts.updateFailed'));
     }
   };
 
@@ -142,17 +144,17 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Failed to delete subscription:', error);
-      alert('Failed to delete subscription');
+      alert(t('dashboardAlerts.deleteFailed'));
     }
   };
 
   const handleDismissAccount = async (connectionId: string) => {
-    if (!confirm('Disconnect this bank account?')) return;
+    if (!confirm(t('dashboardAlerts.disconnectConfirm'))) return;
     const disconnected = await disconnectTrueLayerConnection(connectionId);
     if (disconnected) {
       setBankConnections(prev => prev.filter(c => c.id !== connectionId));
     } else {
-      alert('Failed to disconnect bank account');
+      alert(t('dashboardAlerts.disconnectFailed'));
     }
   };
 
@@ -167,15 +169,15 @@ export default function DashboardPage() {
         // The server retired this connection; drop it and its pending items.
         setBankConnections(prev => prev.filter(c => c.id !== connectionId));
         setDetectedSubs(await getPendingDetectedSubscriptions());
-        if (confirm('Your bank access has expired. Reconnect your bank now?')) {
+        if (confirm(t('dashboardAlerts.reconnectConfirm'))) {
           router.push('/connect-bank');
         }
       } else {
-        alert('Failed to check for subscriptions');
+        alert(t('dashboardAlerts.checkFailed'));
       }
     } catch (error) {
       console.error('Failed to check for subscriptions:', error);
-      alert('Failed to check for subscriptions');
+      alert(t('dashboardAlerts.checkFailed'));
     } finally {
       setSyncing(false);
     }
@@ -188,11 +190,11 @@ export default function DashboardPage() {
         setDetectedSubs(prev => prev.filter(d => d.id !== detected.id));
         setSubscriptions(prev => [...prev, newSub]);
       } else {
-        alert('Failed to confirm subscription');
+        alert(t('dashboardAlerts.confirmFailed'));
       }
     } catch (error) {
       console.error('Failed to confirm subscription:', error);
-      alert('Failed to confirm subscription');
+      alert(t('dashboardAlerts.confirmFailed'));
     }
   };
 
@@ -211,39 +213,39 @@ export default function DashboardPage() {
       if (dismissed) {
         setDetectedSubs(prev => prev.filter(d => d.id !== id));
       } else {
-        alert('Failed to dismiss subscription');
+        alert(t('dashboardAlerts.dismissFailed'));
       }
     } catch (error) {
       console.error('Failed to dismiss subscription:', error);
-      alert('Failed to dismiss subscription');
+      alert(t('dashboardAlerts.dismissFailed'));
     }
   };
 
   const handleDismissCategory = async (category: string, items: DetectedSubscriptionRow[]) => {
-    if (!confirm(`Dismiss all ${items.length} detected subscriptions in "${category}"?`)) return;
+    if (!confirm(t('dashboardAlerts.dismissCategoryConfirm', { count: items.length, category: categoryLabel(t, category) }))) return;
     const ids = new Set(items.map(d => d.id));
     try {
       const dismissed = await dismissDetectedSubscriptions([...ids]);
       if (dismissed) {
         setDetectedSubs(prev => prev.filter(d => !ids.has(d.id)));
       } else {
-        alert('Failed to dismiss subscriptions');
+        alert(t('dashboardAlerts.dismissManyFailed'));
       }
     } catch (error) {
       console.error('Failed to dismiss subscriptions:', error);
-      alert('Failed to dismiss subscriptions');
+      alert(t('dashboardAlerts.dismissManyFailed'));
     }
   };
 
   const handleConfirmOnboarding = async () => {
     if (!(await updateSettings({ onboardedAt: new Date().toISOString() }))) {
-      alert('Failed to save settings');
+      alert(t('dashboardAlerts.saveSettingsFailed'));
     }
   };
 
   const handleUseSuggestedCurrency = async (currency: string) => {
     if (!(await updateSettings({ currency }))) {
-      alert('Failed to save settings');
+      alert(t('dashboardAlerts.saveSettingsFailed'));
     }
   };
 
@@ -261,16 +263,16 @@ export default function DashboardPage() {
     try {
       const { success, synced } = await syncToCloud();
       if (success) {
-        alert(`Successfully synced ${synced} subscriptions to cloud`);
+        alert(t('dashboardAlerts.syncSuccess', { count: synced }));
         // Reload from cloud
         const subs = await getSubscriptions();
         setSubscriptions(subs);
       } else {
-        alert('Sync failed');
+        alert(t('dashboardAlerts.syncFailed'));
       }
     } catch (error) {
       console.error('Sync failed:', error);
-      alert('Sync failed');
+      alert(t('dashboardAlerts.syncFailed'));
     } finally {
       setSyncing(false);
     }
@@ -308,7 +310,7 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-gray-400">Loading...</p>
+          <p className="text-gray-400">{t('common.loading')}</p>
         </div>
       </div>
     );
@@ -322,24 +324,24 @@ export default function DashboardPage() {
       {!settings.onboardedAt && (
         <div className="p-4 pb-0">
           <div className="bg-gray-900 border border-blue-800 rounded-xl p-4">
-            <h3 className="font-semibold text-white text-sm mb-1">👋 Is this right?</h3>
+            <h3 className="font-semibold text-white text-sm mb-1">{t('dashboard.onboardingTitle')}</h3>
             <p className="text-xs text-gray-400">
-              You live in <span className="text-white">{residence ? `${residence.flag} ${residence.label}` : settings.country}</span>
-              {' · '}totals shown in <span className="text-white">{baseCurrency}</span>
-              {' · '}e.g. <span className="text-white">{formatCurrency(1234.5, baseCurrency, settings.locale)}</span>
+              {t('dashboard.youLiveIn')} <span className="text-white">{residence ? `${residence.flag} ${residence.label}` : settings.country}</span>
+              {' · '}{t('dashboard.totalsShownIn')} <span className="text-white">{baseCurrency}</span>
+              {' · '}{t('dashboard.example')} <span className="text-white">{formatCurrency(1234.5, baseCurrency, settings.locale)}</span>
             </p>
             <div className="flex gap-2 mt-3">
               <button
                 onClick={handleConfirmOnboarding}
                 className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
               >
-                Looks right
+                {t('dashboard.looksRight')}
               </button>
               <button
                 onClick={() => router.push('/settings')}
                 className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors"
               >
-                Change
+                {t('dashboard.change')}
               </button>
             </div>
           </div>
@@ -351,21 +353,20 @@ export default function DashboardPage() {
         <div className="p-4 pb-0">
           <div className="bg-gray-900 border border-yellow-800/60 rounded-xl p-4">
             <p className="text-xs text-gray-300">
-              Your bank accounts are in <span className="text-white font-medium">{suggestedCurrency}</span>, but totals are shown in{' '}
-              <span className="text-white font-medium">{baseCurrency}</span>. Switch your base currency?
+              {t('dashboard.currencySuggestion', { suggested: suggestedCurrency, base: baseCurrency })}
             </p>
             <div className="flex gap-2 mt-3">
               <button
                 onClick={() => handleUseSuggestedCurrency(suggestedCurrency)}
                 className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
               >
-                Use {suggestedCurrency}
+                {t('dashboard.useCurrency', { currency: suggestedCurrency })}
               </button>
               <button
                 onClick={() => handleKeepCurrency(suggestedCurrency)}
                 className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors"
               >
-                Keep {baseCurrency}
+                {t('dashboard.keepCurrency', { currency: baseCurrency })}
               </button>
             </div>
           </div>
@@ -378,16 +379,16 @@ export default function DashboardPage() {
           <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-800 rounded-xl p-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-white mb-1">🔗 Connect Your Bank</h3>
+                <h3 className="font-semibold text-white mb-1">{t('dashboard.connectBankTitle')}</h3>
                 <p className="text-xs text-gray-400">
-                  Automatically detect subscriptions with Open Banking
+                  {t('dashboard.connectBankText')}
                 </p>
               </div>
               <button
                 onClick={() => router.push('/connect-bank')}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
               >
-                Connect
+                {t('dashboard.connect')}
               </button>
             </div>
           </div>
@@ -397,30 +398,32 @@ export default function DashboardPage() {
           {bankConnections.map((conn) => (
             <div key={conn.id} className="bg-gray-900 rounded-xl p-4 border border-gray-800">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-white text-sm">🏦 Bank Connected</h3>
+                <h3 className="font-semibold text-white text-sm">{t('dashboard.bankConnected')}</h3>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-gray-500">
-                    {conn.last_synced_at ? `Synced ${new Date(conn.last_synced_at).toLocaleDateString()}` : 'Not synced yet'}
+                    {conn.last_synced_at
+                      ? t('dashboard.syncedOn', { date: new Date(conn.last_synced_at).toLocaleDateString(settings.locale) })
+                      : t('dashboard.notSynced')}
                   </span>
                   <button
                     onClick={() => handleDismissAccount(conn.id)}
                     className="text-xs text-gray-500 hover:text-red-400 transition-colors"
                   >
-                    Dismiss
+                    {t('common.dismiss')}
                   </button>
                 </div>
               </div>
               <p className="text-xs text-gray-400">
                 {conn.accounts.length === 0
-                  ? 'No accounts found yet'
-                  : `${conn.accounts.length} account${conn.accounts.length === 1 ? '' : 's'} linked`}
+                  ? t('dashboard.noAccounts')
+                  : t('dashboard.accountsLinked', { count: conn.accounts.length })}
               </p>
               <button
                 onClick={() => handleCheckSubscriptions(conn.id)}
                 disabled={syncing}
                 className="w-full mt-3 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 text-xs rounded-lg transition-colors"
               >
-                {syncing ? 'Checking…' : '🔄 Check for subscriptions'}
+                {syncing ? t('dashboard.checking') : t('dashboard.checkSubscriptions')}
               </button>
             </div>
           ))}
@@ -428,7 +431,7 @@ export default function DashboardPage() {
             onClick={() => router.push('/connect-bank')}
             className="w-full py-2 border border-dashed border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 text-sm rounded-lg transition-colors"
           >
-            + Connect another bank
+            {t('dashboard.connectAnotherBank')}
           </button>
         </div>
       )}
@@ -437,7 +440,7 @@ export default function DashboardPage() {
       {detectedSubs.length > 0 && (
         <div className="p-4">
           <h2 className="text-lg font-semibold text-white mb-3">
-            🔍 Detected Subscriptions ({detectedSubs.length})
+            {t('dashboard.detectedTitle', { count: detectedSubs.length })}
           </h2>
           <div className="space-y-2">
             {Object.entries(groupByCategory(detectedSubs)).map(([category, items]) => {
@@ -451,7 +454,7 @@ export default function DashboardPage() {
                     >
                       <div className="flex items-center gap-2">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryColor(category as Category)}`}>
-                          {category}
+                          {categoryLabel(t, category)}
                         </span>
                         <span className="text-xs text-gray-500">({items.length})</span>
                       </div>
@@ -461,7 +464,7 @@ export default function DashboardPage() {
                       onClick={() => handleDismissCategory(category, items)}
                       className="shrink-0 px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-lg transition-colors"
                     >
-                      Dismiss all
+                      {t('dashboard.dismissAll')}
                     </button>
                   </div>
                   {isOpen && (
@@ -472,7 +475,7 @@ export default function DashboardPage() {
                             <div>
                               <p className="text-white font-medium text-sm">{d.merchant_name}</p>
                               <p className="text-xs text-gray-400">
-                                {formatCurrency(d.amount, d.currency, settings.locale)} · {d.billing_cycle} · seen {d.occurrence_count}x
+                                {formatCurrency(d.amount, d.currency, settings.locale)} · {billingCycleLabel(t, d.billing_cycle)} · {t('dashboard.seenTimes', { count: d.occurrence_count })}
                               </p>
                             </div>
                           </div>
@@ -481,13 +484,13 @@ export default function DashboardPage() {
                               onClick={() => handleConfirmDetected(d)}
                               className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors"
                             >
-                              Confirm
+                              {t('common.confirm')}
                             </button>
                             <button
                               onClick={() => handleDismissDetected(d.id)}
                               className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded-lg transition-colors"
                             >
-                              Dismiss
+                              {t('common.dismiss')}
                             </button>
                           </div>
                         </div>
@@ -504,36 +507,36 @@ export default function DashboardPage() {
       {/* Summary cards */}
       <div className="p-4 space-y-4">
         <SummaryCard
-          title="Monthly Total"
+          title={t('dashboard.monthlyTotal')}
           amount={monthlyTotal}
           currency={baseCurrency}
           locale={settings.locale}
           approximate={totalIsConverted}
           icon="📅"
-          subtitle="Estimated monthly spending"
+          subtitle={t('dashboard.monthlySubtitle')}
         />
         {excludedCurrencies.length > 0 && (
           <p className="text-xs text-yellow-400/80 -mt-2">
-            Not included (no exchange rate available): {excludedCurrencies.join(', ')}
+            {t('dashboard.notIncluded', { currencies: excludedCurrencies.join(', ') })}
           </p>
         )}
 
         <div className="grid grid-cols-2 gap-4">
           <SummaryCard
-            title="Yearly"
+            title={t('dashboard.yearly')}
             amount={yearlyTotal}
             currency={baseCurrency}
             locale={settings.locale}
             approximate={totalIsConverted}
             icon="📆"
-            subtitle="Projected yearly cost"
+            subtitle={t('dashboard.yearlySubtitle')}
           />
           <SummaryCard
-            title="Renewals"
+            title={t('dashboard.renewals')}
             amount={renewalCount}
             currency=""
             icon="⏰"
-            subtitle="Renewing this week"
+            subtitle={t('dashboard.renewalsSubtitle')}
           />
         </div>
 
@@ -546,10 +549,10 @@ export default function DashboardPage() {
           {syncing ? (
             <>
               <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-              Syncing...
+              {t('dashboard.syncing')}
             </>
           ) : (
-            <>🔄 Sync Subscriptions</>
+            <>{t('dashboard.syncSubscriptions')}</>
           )}
         </button>
 
@@ -557,7 +560,9 @@ export default function DashboardPage() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-white">
-              Your Subscriptions ({filteredSubscriptions.length}{filteredSubscriptions.length !== subscriptions.length ? ` of ${subscriptions.length}` : ''})
+              {filteredSubscriptions.length !== subscriptions.length
+                ? t('dashboard.yourSubscriptionsFiltered', { count: filteredSubscriptions.length, total: subscriptions.length })
+                : t('dashboard.yourSubscriptions', { count: subscriptions.length })}
             </h2>
           </div>
 
@@ -568,9 +573,9 @@ export default function DashboardPage() {
                 onChange={(e) => setCategoryFilter(e.target.value)}
                 className="flex-1 bg-gray-800 text-gray-300 text-xs px-2 py-2 rounded-lg border border-gray-700 focus:outline-none focus:border-blue-500"
               >
-                <option value="all">All categories</option>
+                <option value="all">{t('dashboard.allCategories')}</option>
                 {availableCategories.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>{categoryLabel(t, c)}</option>
                 ))}
               </select>
               <select
@@ -578,7 +583,7 @@ export default function DashboardPage() {
                 onChange={(e) => setPaymentMethodFilter(e.target.value)}
                 className="flex-1 bg-gray-800 text-gray-300 text-xs px-2 py-2 rounded-lg border border-gray-700 focus:outline-none focus:border-blue-500"
               >
-                <option value="all">All banks / payment methods</option>
+                <option value="all">{t('dashboard.allPaymentMethods')}</option>
                 {availablePaymentMethods.map((p) => (
                   <option key={p} value={p}>{p}</option>
                 ))}
@@ -589,16 +594,16 @@ export default function DashboardPage() {
           {subscriptions.length === 0 ? (
             <div className="text-center py-8">
               <span className="text-4xl mb-3 block">📭</span>
-              <p className="text-gray-400 text-sm">No subscriptions yet</p>
+              <p className="text-gray-400 text-sm">{t('dashboard.noSubscriptions')}</p>
               <button
                 onClick={() => setActiveTab('add')}
                 className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
               >
-                Add First Subscription
+                {t('dashboard.addFirst')}
               </button>
             </div>
           ) : filteredSubscriptions.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">No subscriptions match this filter</p>
+            <p className="text-gray-400 text-sm text-center py-8">{t('dashboard.noMatches')}</p>
           ) : (
             <div className="space-y-3">
               {filteredSubscriptions.map((sub) => (

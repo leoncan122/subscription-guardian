@@ -85,12 +85,6 @@ export function getCategoryColor(category: Category): string {
   return colors[category] ?? colors.other;
 }
 
-export function getRenewalText(daysUntil: number): string {
-  if (daysUntil <= 0) return "Due today";
-  if (daysUntil === 1) return "Renews tomorrow";
-  return `Renews in ${daysUntil} days`;
-}
-
 // `locale` is the user's formatting locale (UserSettings.locale), so e.g.
 // 1234.5 EUR renders as "1.234,50 €" for es-ES and "€1,234.50" for en-IE.
 export function formatCurrency(amount: number, currency: string, locale = "en-US"): string {
@@ -103,16 +97,6 @@ export function formatCurrency(amount: number, currency: string, locale = "en-US
     // Unknown locale or currency code - fall back to a plain rendering.
     return `${amount.toFixed(2)} ${currency.toUpperCase()}`;
   }
-}
-
-export function getBillingCycleLabel(cycle: BillingCycle): string {
-  const labels: Record<BillingCycle, string> = {
-    weekly: "Weekly",
-    monthly: "Monthly",
-    quarterly: "Quarterly",
-    yearly: "Yearly",
-  };
-  return labels[cycle] ?? cycle;
 }
 
 export function getMonthlyBreakdown(

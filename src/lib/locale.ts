@@ -24,10 +24,13 @@ export const COUNTRIES = [
   { code: 'AU', label: 'Australia', flag: '🇦🇺', currency: 'AUD', locale: 'en-AU' },
 ] as const
 
+// UI language + number/date format. Only languages with a translation in
+// src/i18n are offered; other stored locales still format numbers/dates but
+// show the UI in the fallback language (see resolveLanguage).
 export const LOCALES = [
   { code: 'es-ES', label: 'Español (España)' },
   { code: 'es-MX', label: 'Español (México)' },
-  { code: 'ca-ES', label: 'Català' },
+  { code: 'eu-ES', label: 'Euskara' },
   { code: 'en-GB', label: 'English (UK)' },
   { code: 'en-US', label: 'English (US)' },
   { code: 'fr-FR', label: 'Français' },
@@ -35,7 +38,6 @@ export const LOCALES = [
   { code: 'it-IT', label: 'Italiano' },
   { code: 'pt-PT', label: 'Português (Portugal)' },
   { code: 'pt-BR', label: 'Português (Brasil)' },
-  { code: 'nl-NL', label: 'Nederlands' },
 ] as const
 
 export const CURRENCIES = ['EUR', 'GBP', 'USD', 'CHF', 'CAD', 'MXN', 'BRL', 'AUD', 'JPY', 'SEK', 'NOK', 'DKK', 'PLN'] as const
@@ -56,7 +58,7 @@ const TIMEZONE_COUNTRY: Record<string, string> = {
 
 // Last-resort guess for region-less browser languages ("es", "fr").
 const LANGUAGE_COUNTRY: Record<string, string> = {
-  es: 'ES', ca: 'ES', en: 'GB', fr: 'FR', de: 'DE', it: 'IT', pt: 'PT', nl: 'NL',
+  es: 'ES', ca: 'ES', eu: 'ES', gl: 'ES', en: 'GB', fr: 'FR', de: 'DE', it: 'IT', pt: 'PT', nl: 'NL',
 }
 
 export function getCountry(code: string | null | undefined) {

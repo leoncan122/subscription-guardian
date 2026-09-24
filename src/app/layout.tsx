@@ -4,6 +4,7 @@ import "./globals.css";
 import { RegisterSW } from "./register-sw";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
+import { DocumentLanguage } from "@/i18n";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -56,6 +57,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-gray-950 text-white">
         <AuthProvider>
           <SettingsProvider>
+            <DocumentLanguage />
             <RegisterSW />
             {children}
           </SettingsProvider>

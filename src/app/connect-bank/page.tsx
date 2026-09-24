@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { BASE_PATH, TRUELAYER_COUNTRIES } from '@/lib/constants';
 import { useSettings } from '@/contexts/SettingsContext';
+import { useTranslation } from '@/i18n';
 
 // TrueLayer keys use 'uk'; user settings store ISO 3166 codes ('GB').
 function truelayerCountryFor(isoCountry: string): string | undefined {
@@ -16,6 +17,7 @@ export default function ConnectBankPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const { settings } = useSettings();
+  const { t } = useTranslation();
   // Default to the country of residence; banks in other countries stay one tap away.
   const [pickedCountry, setCountry] = useState<string | null>(null);
   const country = pickedCountry ?? truelayerCountryFor(settings.country) ?? TRUELAYER_COUNTRIES[0].code;
@@ -39,9 +41,9 @@ export default function ConnectBankPage() {
     <div className="min-h-screen bg-gray-950 pb-20">
       <div className="p-4 space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-white mb-2">Connect Your Bank</h1>
+          <h1 className="text-2xl font-bold text-white mb-2">{t('connectBank.title')}</h1>
           <p className="text-gray-400 text-sm">
-            Connect using TrueLayer Open Banking — secure, read-only access to your account data.
+            {t('connectBank.subtitle')}
           </p>
         </div>
 
@@ -50,10 +52,9 @@ export default function ConnectBankPage() {
           <div className="flex items-start gap-3">
             <span className="text-2xl">🔒</span>
             <div>
-              <h3 className="font-semibold text-white text-sm">Secure Open Banking</h3>
+              <h3 className="font-semibold text-white text-sm">{t('connectBank.secureTitle')}</h3>
               <p className="text-xs text-blue-200 mt-1">
-                We use TrueLayer with Open Banking standards. Your bank credentials are never stored.
-                We only receive read-only access to view balances and transactions.
+                {t('connectBank.secureText')}
               </p>
             </div>
           </div>
@@ -61,7 +62,7 @@ export default function ConnectBankPage() {
 
         {/* Bank country selector */}
         <div>
-          <label className="text-xs text-gray-400">¿Dónde está tu banco?</label>
+          <label className="text-xs text-gray-400">{t('connectBank.whereIsBank')}</label>
           <div className="flex gap-2 mt-2">
             {TRUELAYER_COUNTRIES.map((c) => (
               <button
@@ -87,7 +88,7 @@ export default function ConnectBankPage() {
         >
           <div className="flex items-center justify-center gap-3">
             <span className="text-2xl">🏦</span>
-            <span>Connect with TrueLayer</span>
+            <span>{t('connectBank.connectWithTrueLayer')}</span>
           </div>
         </a>
 
@@ -96,7 +97,7 @@ export default function ConnectBankPage() {
           onClick={() => router.push('/dashboard')}
           className="w-full py-3 text-gray-400 text-sm hover:text-white transition-colors"
         >
-          Back to Dashboard
+          {t('common.backToDashboard')}
         </button>
       </div>
     </div>
