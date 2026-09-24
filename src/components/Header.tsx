@@ -38,20 +38,25 @@ export function TabBar({
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/90 backdrop-blur-sm border-t border-gray-800 px-4 py-2 z-10 safe-area-inset-bottom">
-      <div className="flex justify-around max-w-lg mx-auto">
+    <nav
+      className="fixed inset-x-0 bottom-0 z-10 flex justify-center pointer-events-none"
+      style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+    >
+      <div className="pointer-events-auto flex items-center gap-1 lg:gap-4 p-1.5 lg:p-2 rounded-full bg-gray-800/60 backdrop-blur-xl border border-white/10 shadow-lg shadow-black/40">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className={`flex flex-col items-center gap-1 px-4 py-1 rounded-lg transition-colors ${
+            aria-label={tab.label}
+            title={tab.label}
+            className={`flex flex-col items-center justify-center gap-0.5 w-12 h-12 lg:w-auto lg:h-auto lg:px-8 lg:py-2 rounded-full transition-colors ${
               activeTab === tab.id
-                ? "text-blue-400"
-                : "text-gray-500"
+                ? "bg-white/15 text-blue-400"
+                : "text-gray-400 opacity-60 hover:opacity-100"
             }`}
           >
             <span className="text-xl">{tab.icon}</span>
-            <span className="text-xs">{tab.label}</span>
+            <span className="hidden lg:block text-[11px] font-medium">{tab.label}</span>
           </button>
         ))}
       </div>

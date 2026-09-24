@@ -7,7 +7,7 @@ import { Subscription, Category } from '@/types/subscription';
 import {
   getSubscriptions, addSubscription, updateSubscription, deleteSubscription,
   getTrueLayerConnections, TrueLayerConnectionSummary, disconnectTrueLayerConnection,
-  getPendingDetectedSubscriptions, confirmDetectedSubscription, dismissDetectedSubscription, DetectedSubscriptionRow,
+  getPendingDetectedSubscriptions, confirmDetectedSubscription, dismissDetectedSubscription, dismissDetectedSubscriptions, DetectedSubscriptionRow,
   redetectSubscriptions,
 } from '@/lib/supabase/subscriptions';
 import { syncFromCloud, syncToCloud } from '@/lib/supabase/sync';
@@ -183,6 +183,22 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDismissCategory = async (category: string, items: DetectedSubscriptionRow[]) => {
+    if (!confirm(`Dismiss all ${items.length} detected subscriptions in "${category}"?`)) return;
+    const ids = new Set(items.map(d => d.id));
+    try {
+      const dismissed = await dismissDetectedSubscriptions([...ids]);
+      if (dismissed) {
+        setDetectedSubs(prev => prev.filter(d => !ids.has(d.id)));
+      } else {
+        alert('Failed to dismiss subscriptions');
+      }
+    } catch (error) {
+      console.error('Failed to dismiss subscriptions:', error);
+      alert('Failed to dismiss subscriptions');
+    }
+  };
+
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -243,7 +259,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 pb-20">
+    <div className="min-h-screen shrink-0 bg-gray-950 pb-32">
       <Header onLogout={logout} />
 
       {/* Bank connection banner */}
@@ -318,18 +334,26 @@ export default function DashboardPage() {
               const isOpen = expandedCategories.has(category);
               return (
                 <div key={category} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-                  <button
-                    onClick={() => toggleCategory(category)}
-                    className="w-full flex items-center justify-between p-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryColor(category as Category)}`}>
-                        {category}
-                      </span>
-                      <span className="text-xs text-gray-500">({items.length})</span>
-                    </div>
-                    <span className="text-gray-500 text-xs">{isOpen ? '▲' : '▼'}</span>
-                  </button>
+                  <div className="flex items-center gap-2 pr-3">
+                    <button
+                      onClick={() => toggleCategory(category)}
+                      className="flex-1 flex items-center justify-between p-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryColor(category as Category)}`}>
+                          {category}
+                        </span>
+                        <span className="text-xs text-gray-500">({items.length})</span>
+                      </div>
+                      <span className="text-gray-500 text-xs">{isOpen ? '▲' : '▼'}</span>
+                    </button>
+                    <button
+                      onClick={() => handleDismissCategory(category, items)}
+                      className="shrink-0 px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-lg transition-colors"
+                    >
+                      Dismiss all
+                    </button>
+                  </div>
                   {isOpen && (
                     <div className="space-y-2 p-3 pt-0">
                       {items.map((d) => (
