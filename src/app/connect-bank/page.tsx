@@ -4,11 +4,21 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { BASE_PATH, TRUELAYER_COUNTRIES } from '@/lib/constants';
+import { useSettings } from '@/contexts/SettingsContext';
+
+// TrueLayer keys use 'uk'; user settings store ISO 3166 codes ('GB').
+function truelayerCountryFor(isoCountry: string): string | undefined {
+  const code = isoCountry.toUpperCase() === 'GB' ? 'uk' : isoCountry.toLowerCase();
+  return TRUELAYER_COUNTRIES.find((c) => c.code === code)?.code;
+}
 
 export default function ConnectBankPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const [country, setCountry] = useState<string>(TRUELAYER_COUNTRIES[0].code);
+  const { settings } = useSettings();
+  // Default to the country of residence; banks in other countries stay one tap away.
+  const [pickedCountry, setCountry] = useState<string | null>(null);
+  const country = pickedCountry ?? truelayerCountryFor(settings.country) ?? TRUELAYER_COUNTRIES[0].code;
 
   useEffect(() => {
     if (authLoading) return;

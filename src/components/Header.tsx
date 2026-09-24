@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function Header({ onLogout }: { onLogout?: () => Promise<void> }) {
   return (
     <header className="bg-gray-900/80 backdrop-blur-sm border-b border-gray-800 px-4 py-3 sticky top-0 z-10">
@@ -7,6 +9,14 @@ export function Header({ onLogout }: { onLogout?: () => Promise<void> }) {
           <h1 className="text-lg font-bold text-white">Subscription Guardian</h1>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/settings"
+            aria-label="Settings"
+            title="Settings"
+            className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded-full bg-gray-800 transition-colors"
+          >
+            ⚙️
+          </Link>
           {onLogout && (
             <button
               onClick={onLogout}

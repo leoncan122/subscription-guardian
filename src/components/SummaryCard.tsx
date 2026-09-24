@@ -1,13 +1,20 @@
+import { formatCurrency } from "@/utils/helpers";
+
 export function SummaryCard({
   title,
   amount,
   currency,
+  locale,
+  approximate,
   subtitle,
   icon,
 }: {
   title: string;
   amount: number;
   currency?: string;
+  locale?: string;
+  // prefix with "≈" (amount includes currency conversions)
+  approximate?: boolean;
   subtitle: string;
   icon: string;
 }) {
@@ -20,7 +27,8 @@ export function SummaryCard({
         </span>
       </div>
       <p className="text-2xl font-bold text-white">
-        {currency ? `${currency} ${amount.toFixed(2)}` : amount.toString()}
+        {approximate && "≈ "}
+        {currency ? formatCurrency(amount, currency, locale) : amount.toString()}
       </p>
       <p className="text-sm text-gray-400 mt-1">{subtitle}</p>
     </div>

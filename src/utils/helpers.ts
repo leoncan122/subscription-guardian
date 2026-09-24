@@ -36,7 +36,7 @@ export function getTotalMonthly(subscriptions: Subscription[]): number {
     }, 0);
 }
 
-function convertToMonthly(amount: number, cycle: BillingCycle): number {
+export function convertToMonthly(amount: number, cycle: BillingCycle): number {
   switch (cycle) {
     case "weekly":
       return amount * 4.33;
@@ -91,11 +91,18 @@ export function getRenewalText(daysUntil: number): string {
   return `Renews in ${daysUntil} days`;
 }
 
-export function formatCurrency(amount: number, currency: string): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-  }).format(amount);
+// `locale` is the user's formatting locale (UserSettings.locale), so e.g.
+// 1234.5 EUR renders as "1.234,50 €" for es-ES and "€1,234.50" for en-IE.
+export function formatCurrency(amount: number, currency: string, locale = "en-US"): string {
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: currency.toUpperCase(),
+    }).format(amount);
+  } catch {
+    // Unknown locale or currency code - fall back to a plain rendering.
+    return `${amount.toFixed(2)} ${currency.toUpperCase()}`;
+  }
 }
 
 export function getBillingCycleLabel(cycle: BillingCycle): string {

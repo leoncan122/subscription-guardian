@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import { BILLING_CYCLES, CATEGORIES } from "@/utils/constants";
 import { Category, BillingCycle, Subscription } from "@/types/subscription";
 import { getNextMonth } from "@/utils/helpers";
+import { useSettings } from "@/contexts/SettingsContext";
+import { CURRENCIES } from "@/lib/locale";
 
 interface AddSubscriptionFormProps {
   onSubmit: (data: Omit<Subscription, "id" | "createdAt" | "updatedAt">) => void;
@@ -13,7 +15,8 @@ interface AddSubscriptionFormProps {
 export function AddSubscriptionForm({ onSubmit, onClose }: AddSubscriptionFormProps) {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState("USD");
+  const { settings } = useSettings();
+  const [currency, setCurrency] = useState(settings.currency);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [renewalDate, setRenewalDate] = useState(getNextMonth(new Date()));
   const [paymentMethod, setPaymentMethod] = useState("");
@@ -84,12 +87,9 @@ export function AddSubscriptionForm({ onSubmit, onClose }: AddSubscriptionFormPr
             onChange={(e) => setCurrency(e.target.value)}
             className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-blue-500 focus:outline-none text-sm"
           >
-            <option value="USD">USD</option>
-            <option value="EUR">EUR</option>
-            <option value="GBP">GBP</option>
-            <option value="JPY">JPY</option>
-            <option value="MXN">MXN</option>
-            <option value="BRL">BRL</option>
+            {CURRENCIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
           </select>
         </div>
       </div>
