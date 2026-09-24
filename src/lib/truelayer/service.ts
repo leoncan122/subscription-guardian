@@ -42,7 +42,8 @@ export async function createConnection(
   consentId: string,
   accessToken: string,
   refreshToken: string,
-  expiresInSeconds: number
+  expiresInSeconds: number,
+  provider?: { provider_id: string; display_name: string }
 ): Promise<TrueLayerConnection> {
   const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString()
 
@@ -56,6 +57,8 @@ export async function createConnection(
       refresh_token: refreshToken,
       access_token_expires_at: expiresAt,
       status: 'active',
+      provider_id: provider?.provider_id ?? null,
+      provider_name: provider?.display_name ?? null,
     })
     .select()
     .single()
@@ -189,6 +192,7 @@ export async function syncAccounts(supabase: SupabaseClient, userId: string, con
 
   const token = await getValidAccessToken(supabase, conn)
   const accounts = await TL.getAccounts(token, ctx)
+  await backfillProvider(supabase, conn, accounts)
 
   const truelayerAccounts: TrueLayerAccountDB[] = []
 
@@ -237,6 +241,22 @@ export async function syncAccounts(supabase: SupabaseClient, userId: string, con
   return truelayerAccounts
 }
 
+// Connections made before provider_name existed get it from the accounts
+// we're already fetching (every account carries its provider), so no extra
+// TrueLayer call is needed. Best-effort: a failure only means the generic
+// label stays a while longer.
+async function backfillProvider(supabase: SupabaseClient, conn: TrueLayerConnection, accounts: TL.TLAccount[]): Promise<void> {
+  if (conn.provider_name) return
+  const provider = accounts.find(a => a.provider?.display_name)?.provider
+  if (!provider) return
+
+  const { error } = await supabase
+    .from('truelayer_connections')
+    .update({ provider_id: provider.provider_id, provider_name: provider.display_name })
+    .eq('id', conn.id)
+  if (error) console.warn(`Failed to save provider for connection ${conn.id}:`, error)
+}
+
 // ==================== Subscription Detection ====================
 
 export async function detectSubscriptions(supabase: SupabaseClient, userId: string, connectionId: string, ctx?: TL.TLRequestContext): Promise<DetectedSubscription[]> {
@@ -249,6 +269,7 @@ export async function detectSubscriptions(supabase: SupabaseClient, userId: stri
 
   // Fetch accounts to get all account IDs
   const accounts = await TL.getAccounts(token, ctx)
+  await backfillProvider(supabase, conn, accounts)
   for (const acc of accounts) {
     try {
       const txs = await TL.getTransactions(token, acc.account_id, '2024-01-01', undefined, ctx)

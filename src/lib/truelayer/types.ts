@@ -10,6 +10,8 @@ export interface TrueLayerConnection {
   refresh_token: string | null
   access_token_expires_at: string | null
   status: 'pending' | 'active' | 'revoked' | 'expired'
+  provider_id: string | null
+  provider_name: string | null
   last_synced_at: string | null
   created_at: string
   updated_at: string

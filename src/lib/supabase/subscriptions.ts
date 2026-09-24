@@ -83,6 +83,9 @@ export async function deleteSubscription(id: string): Promise<boolean> {
 export interface TrueLayerConnectionSummary {
   id: string
   status: string
+  // Bank display name from TrueLayer; null for connections not synced since
+  // it was added (see backfillProvider in src/lib/truelayer/service.ts).
+  provider_name: string | null
   last_synced_at: string | null
   created_at: string
   accounts: Array<{
@@ -102,7 +105,7 @@ export async function getTrueLayerConnections(): Promise<TrueLayerConnectionSumm
 
   const { data, error } = await supabase
     .from('truelayer_connections')
-    .select('id, status, last_synced_at, created_at, truelayer_accounts(id, true_layer_account_id, account_label, currency, balance_amount, balance_currency)')
+    .select('id, status, provider_name, last_synced_at, created_at, truelayer_accounts(id, true_layer_account_id, account_label, currency, balance_amount, balance_currency)')
     .eq('user_id', user.id)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
@@ -111,6 +114,7 @@ export async function getTrueLayerConnections(): Promise<TrueLayerConnectionSumm
   return (data || []).map((conn) => ({
     id: conn.id,
     status: conn.status,
+    provider_name: conn.provider_name ?? null,
     last_synced_at: conn.last_synced_at,
     created_at: conn.created_at,
     accounts: conn.truelayer_accounts || [],
