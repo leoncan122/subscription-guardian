@@ -105,6 +105,11 @@ async function tlError(res: Response, fallback: string): Promise<Error> {
   } catch {
     // not JSON - use the raw text as-is
   }
+  console.error('[truelayer/client] request failed', {
+    url: res.url,
+    status: res.status,
+    body: text || '<empty response body>',
+  })
   return new Error(`${fallback} (HTTP ${res.status}): ${detail || '<empty response body>'}`)
 }
 
