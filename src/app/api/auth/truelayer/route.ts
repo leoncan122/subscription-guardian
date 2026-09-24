@@ -8,6 +8,13 @@ export async function GET(request: Request) {
   const origin = requestUrl.origin + BASE_PATH
   const country = requestUrl.searchParams.get('country') || undefined
 
+  console.log('[truelayer/auth] start', {
+    country,
+    origin,
+    env: process.env.TRUELAYER_ENV || 'sandbox',
+    hasClientId: !!process.env.TRUELAYER_CLIENT_ID,
+  })
+
   try {
     // Must match a redirect URI registered in the TrueLayer console exactly
     const callbackUrl = `${origin}/callback`
@@ -17,6 +24,8 @@ export async function GET(request: Request) {
       'info accounts balance transactions',
       country
     )
+
+    console.log('[truelayer/auth] redirecting to authorize url', { authUrl, callbackUrl })
 
     return NextResponse.redirect(authUrl)
   } catch (error: unknown) {
