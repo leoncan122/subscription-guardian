@@ -21,7 +21,10 @@ export async function GET(request: Request) {
     const authUrl = TL.buildAuthorizeUrl(
       callbackUrl,
       process.env.TRUELAYER_CLIENT_ID || '',
-      'info accounts balance transactions',
+      // offline_access is what makes TrueLayer return a refresh token -
+      // without it the ~1h access token can't be renewed and every later
+      // sync/detection fails until the user reconnects.
+      'info accounts balance transactions offline_access',
       country
     )
 

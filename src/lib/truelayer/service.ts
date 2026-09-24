@@ -24,6 +24,16 @@ const SUBSCRIPTION_LIKE_CATEGORIES = new Set(['DIRECT_DEBIT', 'STANDING_ORDER', 
 // src/lib/supabase/server.ts) so RLS policies evaluate against the actual
 // logged-in user's session, not an anonymous connection.
 
+// Thrown when the stored bank access can't be used or renewed any more
+// (expired token with no refresh token, or a refresh token TrueLayer
+// rejects). Only a new consent - reconnecting the bank - fixes it.
+export class ReconnectRequiredError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ReconnectRequiredError'
+  }
+}
+
 // ==================== Connection Management ====================
 
 export async function createConnection(
@@ -113,33 +123,62 @@ export async function revokeConnection(supabase: SupabaseClient, userId: string,
 // ==================== Token Refresh ====================
 
 async function getValidAccessToken(supabase: SupabaseClient, conn: TrueLayerConnection): Promise<string> {
-  if (conn.access_token_expires_at && new Date(conn.access_token_expires_at) < new Date(Date.now() - 5 * 60 * 1000)) {
-    if (!conn.refresh_token) {
-      throw new Error('Token expired and no refresh token available')
-    }
+  // Refresh a little before expiry, so the token doesn't lapse mid-request.
+  const expiresAt = conn.access_token_expires_at ? new Date(conn.access_token_expires_at).getTime() : null
+  const expiringSoon = expiresAt !== null && expiresAt < Date.now() + 5 * 60 * 1000
 
-    const refreshed = await TL.refreshAccessToken(
+  if (!expiringSoon) {
+    if (!conn.access_token) throw new ReconnectRequiredError('No access token available')
+    return conn.access_token
+  }
+
+  if (!conn.refresh_token) {
+    // Connections made before offline_access was requested never got one.
+    throw new ReconnectRequiredError('Bank access expired and this connection has no refresh token')
+  }
+
+  let refreshed: TL.TLTokenResponse
+  try {
+    refreshed = await TL.refreshAccessToken(
       conn.refresh_token,
       process.env.TRUELAYER_CLIENT_ID || '',
       process.env.TRUELAYER_CLIENT_SECRET || ''
     )
-
-    await supabase
-      .from('truelayer_connections')
-      .update({
-        access_token: refreshed.access_token,
-        refresh_token: refreshed.refresh_token,
-        access_token_expires_at: new Date(Date.now() + refreshed.expires_in * 1000).toISOString(),
-      })
-      .eq('id', conn.id)
-
-    return refreshed.access_token
+  } catch (e) {
+    // invalid_grant = refresh token expired/revoked (e.g. the bank consent
+    // ran out). Anything else (network, invalid_client from bad config) must
+    // not retire the connection, so let it surface as-is.
+    if (e instanceof TL.TLError && e.code === 'invalid_grant') {
+      throw new ReconnectRequiredError(`Token refresh rejected: ${e.message}`)
+    }
+    throw e
   }
 
-  if (!conn.access_token) {
-    throw new Error('No access token available')
-  }
-  return conn.access_token
+  const { error } = await supabase
+    .from('truelayer_connections')
+    .update({
+      access_token: refreshed.access_token,
+      // TrueLayer may rotate the refresh token; keep the old one if not.
+      refresh_token: refreshed.refresh_token || conn.refresh_token,
+      access_token_expires_at: new Date(Date.now() + refreshed.expires_in * 1000).toISOString(),
+    })
+    .eq('id', conn.id)
+
+  if (error) console.error('Failed to store refreshed TrueLayer token:', error)
+
+  return refreshed.access_token
+}
+
+// Marks a connection whose access can't be renewed, so the dashboard stops
+// offering actions on it and shows "Connect your bank" instead.
+export async function markConnectionExpired(supabase: SupabaseClient, userId: string, connectionId: string): Promise<void> {
+  const { error } = await supabase
+    .from('truelayer_connections')
+    .update({ status: 'expired', access_token: null, refresh_token: null })
+    .eq('id', connectionId)
+    .eq('user_id', userId)
+
+  if (error) console.error('Failed to mark connection expired:', error)
 }
 
 // ==================== Account Sync ====================
