@@ -202,6 +202,17 @@ export async function dismissDetectedSubscription(id: string): Promise<boolean> 
   return !error
 }
 
+export async function dismissDetectedSubscriptions(ids: string[]): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase
+    .from('detected_subscriptions')
+    .delete()
+    .in('id', ids)
+
+  if (error) console.error('Failed to dismiss detected subscriptions:', error)
+  return !error
+}
+
 function normalizeBillingCycle(cycle: string): BillingCycle {
   if (cycle === 'weekly' || cycle === 'monthly' || cycle === 'quarterly' || cycle === 'yearly') return cycle
   if (cycle === 'biweekly') return 'weekly'

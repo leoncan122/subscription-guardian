@@ -1,5 +1,6 @@
 import { getCategoryColor, getRenewalText, formatCurrency, getBillingCycleLabel } from "@/utils/helpers";
 import { Subscription } from "@/types/subscription";
+import { useSettings } from "@/contexts/SettingsContext";
 
 export function SubscriptionCard({
   subscription,
@@ -12,6 +13,7 @@ export function SubscriptionCard({
   onDelete: (id: string) => void;
   onToggle: (id: string, active: boolean) => void;
 }) {
+  const { settings } = useSettings();
   const daysUntilRenewal = getDaysUntilRenewal(subscription.renewalDate);
   const isUrgent = daysUntilRenewal <= 3;
   const categoryColor = getCategoryColor(subscription.category);
@@ -37,7 +39,7 @@ export function SubscriptionCard({
             <div className="flex items-center gap-3 text-xs text-gray-400">
               <span>
                 <span className="text-white font-medium">
-                  {formatCurrency(subscription.amount, subscription.currency)}
+                  {formatCurrency(subscription.amount, subscription.currency, settings.locale)}
                 </span>{" "}
                 /{" "}
                 {getBillingCycleLabel(subscription.billingCycle)}

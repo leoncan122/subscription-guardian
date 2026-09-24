@@ -7,7 +7,7 @@ import { Subscription, Category } from '@/types/subscription';
 import {
   getSubscriptions, addSubscription, updateSubscription, deleteSubscription,
   getTrueLayerConnections, TrueLayerConnectionSummary, disconnectTrueLayerConnection,
-  getPendingDetectedSubscriptions, confirmDetectedSubscription, dismissDetectedSubscription, DetectedSubscriptionRow,
+  getPendingDetectedSubscriptions, confirmDetectedSubscription, dismissDetectedSubscription, dismissDetectedSubscriptions, DetectedSubscriptionRow,
   redetectSubscriptions,
 } from '@/lib/supabase/subscriptions';
 import { syncFromCloud, syncToCloud } from '@/lib/supabase/sync';
@@ -15,7 +15,34 @@ import { Header, TabBar } from '@/components/Header';
 import { SubscriptionCard } from '@/components/SubscriptionCard';
 import { SummaryCard } from '@/components/SummaryCard';
 import { BASE_PATH } from '@/lib/constants';
-import { getCategoryColor } from '@/utils/helpers';
+import { getCategoryColor, formatCurrency } from '@/utils/helpers';
+import { useSettings } from '@/contexts/SettingsContext';
+import { useFxRates, monthlyTotalInBase } from '@/lib/fx';
+import { getCountry } from '@/lib/locale';
+
+const CURRENCY_SUGGESTION_DISMISSED_KEY = 'sg:currency-suggestion-dismissed';
+
+function readDismissedSuggestion(): string | null {
+  try {
+    return localStorage.getItem(CURRENCY_SUGGESTION_DISMISSED_KEY);
+  } catch {
+    return null;
+  }
+}
+
+// Most common account currency across connected banks, when none of the
+// accounts is in the user's base currency (e.g. base EUR, all accounts GBP).
+function suggestBaseCurrency(connections: TrueLayerConnectionSummary[], base: string): string | null {
+  const counts = new Map<string, number>();
+  for (const conn of connections) {
+    for (const acc of conn.accounts) {
+      const currency = (acc.currency || acc.balance_currency)?.toUpperCase();
+      if (currency) counts.set(currency, (counts.get(currency) ?? 0) + 1);
+    }
+  }
+  if (counts.size === 0 || counts.has(base)) return null;
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+}
 
 function groupByCategory(items: DetectedSubscriptionRow[]): Record<string, DetectedSubscriptionRow[]> {
   return items.reduce<Record<string, DetectedSubscriptionRow[]>>((groups, item) => {
@@ -28,6 +55,8 @@ function groupByCategory(items: DetectedSubscriptionRow[]): Record<string, Detec
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut: logout } = useAuth();
   const router = useRouter();
+  const { settings, loading: settingsLoading, updateSettings } = useSettings();
+  const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(readDismissedSuggestion);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [bankConnections, setBankConnections] = useState<TrueLayerConnectionSummary[]>([]);
   const [detectedSubs, setDetectedSubs] = useState<DetectedSubscriptionRow[]>([]);
@@ -183,6 +212,43 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDismissCategory = async (category: string, items: DetectedSubscriptionRow[]) => {
+    if (!confirm(`Dismiss all ${items.length} detected subscriptions in "${category}"?`)) return;
+    const ids = new Set(items.map(d => d.id));
+    try {
+      const dismissed = await dismissDetectedSubscriptions([...ids]);
+      if (dismissed) {
+        setDetectedSubs(prev => prev.filter(d => !ids.has(d.id)));
+      } else {
+        alert('Failed to dismiss subscriptions');
+      }
+    } catch (error) {
+      console.error('Failed to dismiss subscriptions:', error);
+      alert('Failed to dismiss subscriptions');
+    }
+  };
+
+  const handleConfirmOnboarding = async () => {
+    if (!(await updateSettings({ onboardedAt: new Date().toISOString() }))) {
+      alert('Failed to save settings');
+    }
+  };
+
+  const handleUseSuggestedCurrency = async (currency: string) => {
+    if (!(await updateSettings({ currency }))) {
+      alert('Failed to save settings');
+    }
+  };
+
+  const handleKeepCurrency = (suggested: string) => {
+    setDismissedSuggestion(suggested);
+    try {
+      localStorage.setItem(CURRENCY_SUGGESTION_DISMISSED_KEY, suggested);
+    } catch {
+      // storage unavailable (private mode) - the suggestion just comes back next visit
+    }
+  };
+
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -203,18 +269,12 @@ export default function DashboardPage() {
     }
   };
 
-  // Calculate summaries
-  const monthlyTotal = subscriptions
-    .filter(s => s.active)
-    .reduce((sum, s) => {
-      const amount = s.amount;
-      switch (s.billingCycle) {
-        case 'weekly': return sum + amount * 4.33;
-        case 'quarterly': return sum + amount / 3;
-        case 'yearly': return sum + amount / 12;
-        default: return sum + amount;
-      }
-    }, 0);
+  // Calculate summaries - totals are in the user's base currency; other
+  // currencies are converted with the day's ECB rates.
+  const baseCurrency = settings.currency;
+  const fx = useFxRates(baseCurrency, subscriptions.filter(s => s.active).map(s => s.currency));
+  const { monthly: monthlyTotal, converted: totalIsConverted, excluded: excludedCurrencies } =
+    monthlyTotalInBase(subscriptions, baseCurrency, fx);
 
   const yearlyTotal = monthlyTotal * 12;
   const renewalCount = subscriptions.filter(s => {
@@ -224,6 +284,11 @@ export default function DashboardPage() {
     return daysUntil >= 0 && daysUntil <= 7;
   }).length;
 
+  const residence = getCountry(settings.country);
+  const suggestedCurrency = suggestBaseCurrency(bankConnections, baseCurrency);
+  const showCurrencySuggestion =
+    !!settings.onboardedAt && !!suggestedCurrency && suggestedCurrency !== dismissedSuggestion;
+
   const availableCategories = [...new Set(subscriptions.map(s => s.category))].sort();
   const availablePaymentMethods = [...new Set(subscriptions.map(s => s.paymentMethod).filter(Boolean))].sort();
   const filteredSubscriptions = subscriptions.filter(s =>
@@ -231,7 +296,7 @@ export default function DashboardPage() {
     (paymentMethodFilter === 'all' || s.paymentMethod === paymentMethodFilter)
   );
 
-  if (authLoading || loading) {
+  if (authLoading || loading || settingsLoading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center">
@@ -243,8 +308,62 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 pb-20">
+    <div className="min-h-screen shrink-0 bg-gray-950 pb-32">
       <Header onLogout={logout} />
+
+      {/* First-visit confirmation of the browser-detected settings */}
+      {!settings.onboardedAt && (
+        <div className="p-4 pb-0">
+          <div className="bg-gray-900 border border-blue-800 rounded-xl p-4">
+            <h3 className="font-semibold text-white text-sm mb-1">👋 Is this right?</h3>
+            <p className="text-xs text-gray-400">
+              You live in <span className="text-white">{residence ? `${residence.flag} ${residence.label}` : settings.country}</span>
+              {' · '}totals shown in <span className="text-white">{baseCurrency}</span>
+              {' · '}e.g. <span className="text-white">{formatCurrency(1234.5, baseCurrency, settings.locale)}</span>
+            </p>
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={handleConfirmOnboarding}
+                className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+              >
+                Looks right
+              </button>
+              <button
+                onClick={() => router.push('/settings')}
+                className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors"
+              >
+                Change
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Connected accounts are in a different currency than the base one */}
+      {showCurrencySuggestion && suggestedCurrency && (
+        <div className="p-4 pb-0">
+          <div className="bg-gray-900 border border-yellow-800/60 rounded-xl p-4">
+            <p className="text-xs text-gray-300">
+              Your bank accounts are in <span className="text-white font-medium">{suggestedCurrency}</span>, but totals are shown in{' '}
+              <span className="text-white font-medium">{baseCurrency}</span>. Switch your base currency?
+            </p>
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={() => handleUseSuggestedCurrency(suggestedCurrency)}
+                className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+              >
+                Use {suggestedCurrency}
+              </button>
+              <button
+                onClick={() => handleKeepCurrency(suggestedCurrency)}
+                className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors"
+              >
+                Keep {baseCurrency}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bank connection banner */}
       {bankConnections.length === 0 ? (
@@ -318,18 +437,26 @@ export default function DashboardPage() {
               const isOpen = expandedCategories.has(category);
               return (
                 <div key={category} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-                  <button
-                    onClick={() => toggleCategory(category)}
-                    className="w-full flex items-center justify-between p-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryColor(category as Category)}`}>
-                        {category}
-                      </span>
-                      <span className="text-xs text-gray-500">({items.length})</span>
-                    </div>
-                    <span className="text-gray-500 text-xs">{isOpen ? '▲' : '▼'}</span>
-                  </button>
+                  <div className="flex items-center gap-2 pr-3">
+                    <button
+                      onClick={() => toggleCategory(category)}
+                      className="flex-1 flex items-center justify-between p-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryColor(category as Category)}`}>
+                          {category}
+                        </span>
+                        <span className="text-xs text-gray-500">({items.length})</span>
+                      </div>
+                      <span className="text-gray-500 text-xs">{isOpen ? '▲' : '▼'}</span>
+                    </button>
+                    <button
+                      onClick={() => handleDismissCategory(category, items)}
+                      className="shrink-0 px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-lg transition-colors"
+                    >
+                      Dismiss all
+                    </button>
+                  </div>
                   {isOpen && (
                     <div className="space-y-2 p-3 pt-0">
                       {items.map((d) => (
@@ -338,7 +465,7 @@ export default function DashboardPage() {
                             <div>
                               <p className="text-white font-medium text-sm">{d.merchant_name}</p>
                               <p className="text-xs text-gray-400">
-                                {d.amount.toFixed(2)} {d.currency} · {d.billing_cycle} · seen {d.occurrence_count}x
+                                {formatCurrency(d.amount, d.currency, settings.locale)} · {d.billing_cycle} · seen {d.occurrence_count}x
                               </p>
                             </div>
                           </div>
@@ -372,16 +499,25 @@ export default function DashboardPage() {
         <SummaryCard
           title="Monthly Total"
           amount={monthlyTotal}
-          currency="USD"
+          currency={baseCurrency}
+          locale={settings.locale}
+          approximate={totalIsConverted}
           icon="📅"
           subtitle="Estimated monthly spending"
         />
+        {excludedCurrencies.length > 0 && (
+          <p className="text-xs text-yellow-400/80 -mt-2">
+            Not included (no exchange rate available): {excludedCurrencies.join(', ')}
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <SummaryCard
             title="Yearly"
             amount={yearlyTotal}
-            currency="USD"
+            currency={baseCurrency}
+            locale={settings.locale}
+            approximate={totalIsConverted}
             icon="📆"
             subtitle="Projected yearly cost"
           />

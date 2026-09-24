@@ -7,6 +7,7 @@ import type {
   DetectedSubscription,
 } from '@/lib/truelayer/types'
 import type { Category } from '@/types/subscription'
+import { buildRecurringSubscriptions } from '@/lib/truelayer/recurrence'
 
 // Transaction categories that a recurring service could plausibly be billed
 // under. Excludes ATM, CASH, CASHBACK, CHEQUE, TRANSFER, FEE_CHARGE, CREDIT,
@@ -196,7 +197,8 @@ export async function detectSubscriptions(supabase: SupabaseClient, userId: stri
   for (const acc of accounts) {
     try {
       const txs = await TL.getTransactions(token, acc.account_id, '2024-01-01', undefined, ctx)
-      allTransactions.push(...txs)
+      // Some providers omit the per-transaction currency - use the account's.
+      allTransactions.push(...txs.map(tx => ({ ...tx, currency: tx.currency || acc.currency })))
     } catch (e) {
       console.warn(`Failed to fetch transactions for ${acc.account_id}:`, e)
     }
@@ -217,6 +219,7 @@ export async function detectSubscriptions(supabase: SupabaseClient, userId: stri
   // (e.g. two unrelated ATM withdrawals of the same round amount).
   const merchantPattern = new Map<string, {
     label: string
+    currency: string
     amounts: number[]
     dates: Date[]
     total: number
@@ -247,7 +250,7 @@ export async function detectSubscriptions(supabase: SupabaseClient, userId: stri
 
     let pattern = merchantPattern.get(key)
     if (!pattern) {
-      pattern = { label: cleanedName, amounts: [], dates: [], total: 0, count: 0, remittanceInfo: [], classifications: [] }
+      pattern = { label: cleanedName, currency: tx.currency || 'GBP', amounts: [], dates: [], total: 0, count: 0, remittanceInfo: [], classifications: [] }
       merchantPattern.set(key, pattern)
     }
 
@@ -274,17 +277,38 @@ export async function detectSubscriptions(supabase: SupabaseClient, userId: stri
     `${recurringCandidates} seen 2+ times`
   )
 
+  // Stitch each merchant's amount groups into subscriptions, so a price
+  // change yields one subscription at its current price (see recurrence.ts).
+  const { subscriptions: recurring, dropped } = buildRecurringSubscriptions(
+    [...merchantPattern.values()].map(p => ({
+      label: p.label,
+      currency: p.currency,
+      amount: p.amounts[0],
+      dates: p.dates,
+      remittanceInfo: p.remittanceInfo,
+      classifications: p.classifications,
+    }))
+  )
+  const priceChanges = recurring.filter(r => r.priceHistory.length > 1)
+  if (priceChanges.length > 0) {
+    console.log(
+      `[detectSubscriptions${ctx?.correlationId ? ' ' + ctx.correlationId : ''}] price changes: ` +
+      priceChanges.map(r => `${r.label} ${r.priceHistory.join(' -> ')} ${r.currency}`).join('; ')
+    )
+  }
+  if (dropped.length > 0) {
+    console.warn(
+      `[detectSubscriptions${ctx?.correlationId ? ' ' + ctx.correlationId : ''}] ` +
+      `skipped concurrent same-cycle subscriptions at one merchant (only one row per merchant+cycle can be stored): ` +
+      dropped.map(d => `${d.label} ${d.amount} ${d.billingCycle}`).join('; ')
+    )
+  }
+
   const detected: DetectedSubscription[] = []
 
-  for (const [, pattern] of merchantPattern) {
-    if (pattern.count < 2) continue
-
-    const billingCycle = detectBillingCycle(pattern.dates)
-    const avgAmount = pattern.total / pattern.count
-    const category = inferCategory(pattern.classifications[0], pattern.remittanceInfo)
-    const sortedDates = pattern.dates.sort((a, b) => a.getTime() - b.getTime())
-
-    const merchantName = pattern.label
+  for (const sub of recurring) {
+    const category = inferCategory(sub.classifications[0], sub.remittanceInfo)
+    const merchantName = sub.label
 
     const { data, error } = await supabase
       .from('detected_subscriptions')
@@ -292,12 +316,12 @@ export async function detectSubscriptions(supabase: SupabaseClient, userId: stri
         user_id: userId,
         connection_id: connectionId,
         merchant_name: merchantName,
-        amount: avgAmount,
-        currency: 'GBP',
-        billing_cycle: billingCycle,
-        first_seen: sortedDates[0]?.toISOString().split('T')[0],
-        last_seen: sortedDates[sortedDates.length - 1]?.toISOString().split('T')[0],
-        occurrence_count: pattern.count,
+        amount: sub.amount,
+        currency: sub.currency,
+        billing_cycle: sub.billingCycle,
+        first_seen: sub.firstSeen.toISOString().split('T')[0],
+        last_seen: sub.lastSeen.toISOString().split('T')[0],
+        occurrence_count: sub.occurrenceCount,
         category,
         // is_confirmed intentionally omitted: on a fresh row it takes the
         // column default (false); on a re-detected existing row it's left
@@ -318,26 +342,6 @@ export async function detectSubscriptions(supabase: SupabaseClient, userId: stri
 
   detected.sort((a, b) => b.amount - a.amount)
   return detected
-}
-
-function detectBillingCycle(dates: Date[]): string {
-  if (dates.length < 3) return 'monthly'
-
-  const gaps: number[] = []
-  const sorted = dates.sort((a, b) => a.getTime() - b.getTime())
-
-  for (let i = 1; i < sorted.length; i++) {
-    const days = (sorted[i].getTime() - sorted[i - 1].getTime()) / (1000 * 60 * 60 * 24)
-    gaps.push(days)
-  }
-
-  const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length
-
-  if (avgGap <= 14) return 'biweekly'
-  if (avgGap <= 21) return 'weekly'
-  if (avgGap <= 45) return 'monthly'
-  if (avgGap <= 100) return 'quarterly'
-  return 'yearly'
 }
 
 // TrueLayer's transaction_classification is a [mainCategory, subCategory, ...]
