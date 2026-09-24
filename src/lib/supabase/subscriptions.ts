@@ -133,11 +133,26 @@ export async function getPendingDetectedSubscriptions(): Promise<DetectedSubscri
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
+  // Only detections from banks that are still connected: rows left behind by
+  // a revoked connection (e.g. an old sandbox test bank) aren't shown.
+  // Two queries instead of an embedded join: the live schema has no foreign
+  // key from detected_subscriptions.connection_id to truelayer_connections.
+  const { data: connections, error: connError } = await supabase
+    .from('truelayer_connections')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+
+  if (connError) throw connError
+  const activeIds = (connections || []).map((c) => c.id)
+  if (activeIds.length === 0) return []
+
   const { data, error } = await supabase
     .from('detected_subscriptions')
     .select('id, merchant_name, amount, currency, billing_cycle, category, occurrence_count, last_seen')
     .eq('user_id', user.id)
     .eq('is_confirmed', false)
+    .in('connection_id', activeIds)
     .order('amount', { ascending: false })
 
   if (error) throw error

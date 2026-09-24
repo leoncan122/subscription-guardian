@@ -75,15 +75,17 @@ export async function getConnections(supabase: SupabaseClient, userId: string): 
 
 export async function revokeConnection(supabase: SupabaseClient, userId: string, connectionId: string): Promise<void> {
   const conn = await getConnection(supabase, userId, connectionId)
-  if (!conn?.access_token) return
+  if (!conn) return
 
-  try {
-    await TL.revokeToken(conn.access_token)
-  } catch (e) {
-    console.warn('TrueLayer token revocation failed:', e)
+  if (conn.access_token) {
+    try {
+      await TL.revokeToken(conn.access_token)
+    } catch (e) {
+      console.warn('TrueLayer token revocation failed:', e)
+    }
   }
 
-  await supabase
+  const { error } = await supabase
     .from('truelayer_connections')
     .update({
       status: 'revoked',
@@ -92,6 +94,20 @@ export async function revokeConnection(supabase: SupabaseClient, userId: string,
     })
     .eq('id', connectionId)
     .eq('user_id', userId)
+
+  if (error) throw new Error(`Failed to mark connection revoked: ${error.message}`)
+
+  // Pending detections from this bank would otherwise stay in the review
+  // list forever. Confirmed ones are kept: they're the source rows of the
+  // user's subscriptions.
+  const { error: deleteError } = await supabase
+    .from('detected_subscriptions')
+    .delete()
+    .eq('connection_id', connectionId)
+    .eq('user_id', userId)
+    .eq('is_confirmed', false)
+
+  if (deleteError) console.error('Failed to delete pending detected subscriptions for revoked connection:', deleteError)
 }
 
 // ==================== Token Refresh ====================
