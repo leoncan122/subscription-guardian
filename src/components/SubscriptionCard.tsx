@@ -1,6 +1,6 @@
-import { getCategoryColor, getRenewalText, formatCurrency, getBillingCycleLabel } from "@/utils/helpers";
+import { getCategoryColor, formatCurrency } from "@/utils/helpers";
 import { Subscription } from "@/types/subscription";
-import { useSettings } from "@/contexts/SettingsContext";
+import { useTranslation, categoryLabel, billingCycleLabel, renewalText } from "@/i18n";
 
 export function SubscriptionCard({
   subscription,
@@ -13,7 +13,7 @@ export function SubscriptionCard({
   onDelete: (id: string) => void;
   onToggle: (id: string, active: boolean) => void;
 }) {
-  const { settings } = useSettings();
+  const { t, locale } = useTranslation();
   const daysUntilRenewal = getDaysUntilRenewal(subscription.renewalDate);
   const isUrgent = daysUntilRenewal <= 3;
   const categoryColor = getCategoryColor(subscription.category);
@@ -31,7 +31,7 @@ export function SubscriptionCard({
           <div className="flex items-center gap-2">
             <h4 className="font-medium text-white text-sm">{subscription.name}</h4>
             <span className={`text-xs px-2 py-0.5 rounded-full ${categoryColor}`}>
-              {subscription.category}
+              {categoryLabel(t, subscription.category)}
             </span>
           </div>
 
@@ -39,10 +39,10 @@ export function SubscriptionCard({
             <div className="flex items-center gap-3 text-xs text-gray-400">
               <span>
                 <span className="text-white font-medium">
-                  {formatCurrency(subscription.amount, subscription.currency, settings.locale)}
+                  {formatCurrency(subscription.amount, subscription.currency, locale)}
                 </span>{" "}
                 /{" "}
-                {getBillingCycleLabel(subscription.billingCycle)}
+                {billingCycleLabel(t, subscription.billingCycle)}
               </span>
               {subscription.paymentMethod && (
                 <>
@@ -58,7 +58,7 @@ export function SubscriptionCard({
                   isUrgent ? "text-red-400" : "text-gray-400"
                 }`}
               >
-                {getRenewalText(daysUntilRenewal)}
+                {renewalText(t, daysUntilRenewal)}
               </span>
               {subscription.cancellationInfo && (
                 <>
@@ -68,7 +68,7 @@ export function SubscriptionCard({
                     onClick={() => onEdit(subscription.id)}
                     title={subscription.cancellationInfo}
                   >
-                    How to cancel
+                    {t("subscription.howToCancel")}
                   </span>
                 </>
               )}
@@ -82,7 +82,7 @@ export function SubscriptionCard({
             className={`w-10 h-6 rounded-full transition-colors relative ${
               subscription.active ? "bg-blue-600" : "bg-gray-700"
             }`}
-            aria-label={subscription.active ? "Deactivate" : "Activate"}
+            aria-label={subscription.active ? t("subscription.deactivate") : t("subscription.activate")}
           >
             <div
               className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
@@ -93,7 +93,7 @@ export function SubscriptionCard({
           <button
             onClick={() => onDelete(subscription.id)}
             className="text-gray-500 hover:text-red-400 text-xs transition-colors"
-            aria-label="Delete"
+            aria-label={t("subscription.delete")}
           >
             ✕
           </button>

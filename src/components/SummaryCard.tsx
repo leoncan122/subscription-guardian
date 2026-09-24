@@ -1,4 +1,7 @@
+"use client";
+
 import { formatCurrency } from "@/utils/helpers";
+import { useTranslation, renewalText, billingCycleLabel } from "@/i18n";
 
 export function SummaryCard({
   title,
@@ -46,6 +49,7 @@ export function UpcomingCard({
   days: number;
   billingCycle: string;
 }) {
+  const { t } = useTranslation();
   const isUrgent = days <= 3;
   const isSoon = days <= 7;
 
@@ -63,18 +67,14 @@ export function UpcomingCard({
         <div>
           <h4 className="font-medium text-white">{name}</h4>
           <p className="text-xs text-gray-400">
-            {days === 0
-              ? "Due today"
-              : days === 1
-                ? "Renews tomorrow"
-                : `Renews in ${days} days`}
+            {renewalText(t, days)}
           </p>
         </div>
         <div className="text-right">
           <p className="font-semibold text-white">
             ${amount.toFixed(2)}
           </p>
-          <p className="text-xs text-gray-400 capitalize">{billingCycle}</p>
+          <p className="text-xs text-gray-400">{billingCycleLabel(t, billingCycle)}</p>
         </div>
       </div>
     </div>

@@ -1,6 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useTranslation } from "@/i18n";
 
 export function Header({ onLogout }: { onLogout?: () => Promise<void> }) {
+  const { t } = useTranslation();
   return (
     <header className="bg-gray-900/80 backdrop-blur-sm border-b border-gray-800 px-4 py-3 sticky top-0 z-10">
       <div className="flex items-center justify-between">
@@ -11,8 +15,8 @@ export function Header({ onLogout }: { onLogout?: () => Promise<void> }) {
         <div className="flex items-center gap-2">
           <Link
             href="/settings"
-            aria-label="Settings"
-            title="Settings"
+            aria-label={t("header.settings")}
+            title={t("header.settings")}
             className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded-full bg-gray-800 transition-colors"
           >
             ⚙️
@@ -22,7 +26,7 @@ export function Header({ onLogout }: { onLogout?: () => Promise<void> }) {
               onClick={onLogout}
               className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded-full bg-gray-800 transition-colors"
             >
-              Logout
+              {t("header.logout")}
             </button>
           )}
           <div className="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded-full">
@@ -41,10 +45,11 @@ export function TabBar({
   activeTab: string;
   onTabChange: (tab: string) => void;
 }) {
+  const { t } = useTranslation();
   const tabs = [
-    { id: "dashboard", label: "Dashboard", icon: "🏠" },
-    { id: "add", label: "Add", icon: "➕" },
-    { id: "history", label: "History", icon: "📊" },
+    { id: "dashboard", label: t("tabs.dashboard"), icon: "🏠" },
+    { id: "add", label: t("tabs.add"), icon: "➕" },
+    { id: "history", label: t("tabs.history"), icon: "📊" },
   ];
 
   return (

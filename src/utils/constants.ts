@@ -1,22 +1,17 @@
 import { BillingCycle, Category } from "@/types/subscription";
 
-export const BILLING_CYCLES: { value: BillingCycle; label: string }[] = [
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-  { value: "quarterly", label: "Quarterly" },
-  { value: "yearly", label: "Yearly" },
-];
+// Labels live in src/i18n (billingCycles.* / categories.*).
+export const BILLING_CYCLES: BillingCycle[] = ["weekly", "monthly", "quarterly", "yearly"];
 
 export const CATEGORIES: {
   value: Category;
-  label: string;
   icon: string;
 }[] = [
-  { value: "entertainment", label: "Entertainment", icon: "▶" },
-  { value: "productivity", label: "Productivity", icon: "⚡" },
-  { value: "storage", label: "Storage", icon: "☁" },
-  { value: "sports", label: "Sports & Fitness", icon: "💪" },
-  { value: "education", label: "Education", icon: "📚" },
-  { value: "utility", label: "Utilities", icon: "⚙" },
-  { value: "other", label: "Other", icon: "📦" },
+  { value: "entertainment", icon: "▶" },
+  { value: "productivity", icon: "⚡" },
+  { value: "storage", icon: "☁" },
+  { value: "sports", icon: "💪" },
+  { value: "education", icon: "📚" },
+  { value: "utility", icon: "⚙" },
+  { value: "other", icon: "📦" },
 ];
