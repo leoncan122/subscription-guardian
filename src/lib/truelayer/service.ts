@@ -7,7 +7,7 @@ import type {
   DetectedSubscription,
 } from '@/lib/truelayer/types'
 import type { Category } from '@/types/subscription'
-import { buildRecurringSubscriptions } from '@/lib/truelayer/recurrence'
+import { storeDetectedSubscriptions, keywordCategory, type Charge } from '@/lib/subscription-detection'
 
 // Transaction categories that a recurring service could plausibly be billed
 // under. Excludes ATM, CASH, CASHBACK, CHEQUE, TRANSFER, FEE_CHARGE, CREDIT,
@@ -289,135 +289,41 @@ export async function detectSubscriptions(supabase: SupabaseClient, userId: stri
     `(categories seen: ${[...new Set(allTransactions.map(t => t.transaction_category ?? 'null'))].join(', ')})`
   )
 
-  // Analyze for recurring patterns. Only transactions posted under a category
-  // a recurring service could plausibly use are considered - this rules out
-  // one-off purchases that happen to share a merchant+amount by coincidence
-  // (e.g. two unrelated ATM withdrawals of the same round amount).
-  const merchantPattern = new Map<string, {
-    label: string
-    currency: string
-    amounts: number[]
-    dates: Date[]
-    total: number
-    count: number
-    remittanceInfo: string[]
-    classifications: string[][]
-  }>()
-
+  // Only transactions posted under a category a recurring service could
+  // plausibly use are considered - this rules out one-off purchases that
+  // happen to share a merchant+amount by coincidence (e.g. two unrelated ATM
+  // withdrawals of the same round amount).
   let missingMerchantName = 0
+  const charges: Charge[] = []
 
-  for (const tx of allTransactions) {
-    if (tx.transaction_type !== 'DEBIT') continue
-    if (!tx.transaction_category || !SUBSCRIPTION_LIKE_CATEGORIES.has(tx.transaction_category)) continue
-
+  for (const tx of categoryEligible) {
     // merchant_name isn't always populated (sandbox mock data rarely sets
-    // it) - fall back to the raw description, stripped of anything that
-    // looks like a per-transaction reference number so repeat payments to
-    // the same payee still group together.
+    // it) - fall back to the raw description.
     if (!tx.merchant_name?.trim()) missingMerchantName++
     const rawName = tx.merchant_name?.trim() || tx.description?.trim()
     if (!rawName) continue
 
-    const cleanedName = rawName.replace(/\d{4,}/g, '').replace(/\s+/g, ' ').trim()
-    if (!cleanedName) continue
-
-    const amount = Math.abs(tx.amount)
-    const key = `${cleanedName.toLowerCase()}_${amount.toFixed(2)}`
-
-    let pattern = merchantPattern.get(key)
-    if (!pattern) {
-      pattern = { label: cleanedName, currency: tx.currency || 'GBP', amounts: [], dates: [], total: 0, count: 0, remittanceInfo: [], classifications: [] }
-      merchantPattern.set(key, pattern)
-    }
-
-    if (tx.timestamp) {
-      pattern.dates.push(new Date(tx.timestamp))
-    }
-
-    pattern.amounts.push(amount)
-    pattern.total += amount
-    pattern.count++
-
-    if (tx.description) {
-      pattern.remittanceInfo.push(tx.description)
-    }
-    if (tx.transaction_classification?.length) {
-      pattern.classifications.push(tx.transaction_classification)
-    }
+    charges.push({
+      name: rawName,
+      amount: Math.abs(tx.amount),
+      currency: tx.currency || 'GBP',
+      date: tx.timestamp ? new Date(tx.timestamp) : undefined,
+      description: tx.description,
+      classification: tx.transaction_classification,
+    })
   }
 
-  const recurringCandidates = [...merchantPattern.values()].filter(p => p.count >= 2).length
-  console.log(
-    `[detectSubscriptions${ctx?.correlationId ? ' ' + ctx.correlationId : ''}] ` +
-    `${merchantPattern.size} distinct merchant+amount groups (${missingMerchantName} transactions had no merchant_name, used description instead), ` +
-    `${recurringCandidates} seen 2+ times`
+  const logTag = `detectSubscriptions${ctx?.correlationId ? ' ' + ctx.correlationId : ''}`
+  console.log(`[${logTag}] ${missingMerchantName} transactions had no merchant_name, used description instead`)
+
+  return storeDetectedSubscriptions(
+    supabase,
+    userId,
+    connectionId,
+    charges,
+    sub => inferCategory(sub.classifications[0], sub.remittanceInfo),
+    logTag
   )
-
-  // Stitch each merchant's amount groups into subscriptions, so a price
-  // change yields one subscription at its current price (see recurrence.ts).
-  const { subscriptions: recurring, dropped } = buildRecurringSubscriptions(
-    [...merchantPattern.values()].map(p => ({
-      label: p.label,
-      currency: p.currency,
-      amount: p.amounts[0],
-      dates: p.dates,
-      remittanceInfo: p.remittanceInfo,
-      classifications: p.classifications,
-    }))
-  )
-  const priceChanges = recurring.filter(r => r.priceHistory.length > 1)
-  if (priceChanges.length > 0) {
-    console.log(
-      `[detectSubscriptions${ctx?.correlationId ? ' ' + ctx.correlationId : ''}] price changes: ` +
-      priceChanges.map(r => `${r.label} ${r.priceHistory.join(' -> ')} ${r.currency}`).join('; ')
-    )
-  }
-  if (dropped.length > 0) {
-    console.warn(
-      `[detectSubscriptions${ctx?.correlationId ? ' ' + ctx.correlationId : ''}] ` +
-      `skipped concurrent same-cycle subscriptions at one merchant (only one row per merchant+cycle can be stored): ` +
-      dropped.map(d => `${d.label} ${d.amount} ${d.billingCycle}`).join('; ')
-    )
-  }
-
-  const detected: DetectedSubscription[] = []
-
-  for (const sub of recurring) {
-    const category = inferCategory(sub.classifications[0], sub.remittanceInfo)
-    const merchantName = sub.label
-
-    const { data, error } = await supabase
-      .from('detected_subscriptions')
-      .upsert({
-        user_id: userId,
-        connection_id: connectionId,
-        merchant_name: merchantName,
-        amount: sub.amount,
-        currency: sub.currency,
-        billing_cycle: sub.billingCycle,
-        first_seen: sub.firstSeen.toISOString().split('T')[0],
-        last_seen: sub.lastSeen.toISOString().split('T')[0],
-        occurrence_count: sub.occurrenceCount,
-        category,
-        // is_confirmed intentionally omitted: on a fresh row it takes the
-        // column default (false); on a re-detected existing row it's left
-        // untouched instead of resetting a prior confirmation back to false.
-      }, {
-        onConflict: 'user_id,merchant_name,billing_cycle',
-        ignoreDuplicates: false,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error(`Failed to save detected subscription ${merchantName}:`, error)
-    } else if (data) {
-      detected.push(data as DetectedSubscription)
-    }
-  }
-
-  detected.sort((a, b) => b.amount - a.amount)
-  return detected
 }
 
 // TrueLayer's transaction_classification is a [mainCategory, subCategory, ...]
@@ -441,14 +347,5 @@ function inferCategory(classification: string[] | undefined, remittanceInfos: st
       return classification?.[1] === 'Electronics & Software' ? 'productivity' : 'other'
   }
 
-  const text = remittanceInfos.join(' ').toLowerCase()
-
-  if (/netflix|prime|disney|spotify|apple\s*music|youtube/i.test(text)) return 'entertainment'
-  if (/google|office|365|adobe|canva|notion|slack/i.test(text)) return 'productivity'
-  if (/dropbox|icloud|onedrive|google\s*one|backblaze/i.test(text)) return 'storage'
-  if (/phone|mobile|cellular|data\s*plan|internet|broadband|fibre|cable\s*tv|electric|water\s*bill/i.test(text)) return 'utility'
-  if (/gym|fitness|yoga|classpass|peloton/i.test(text)) return 'sports'
-  if (/udemy|coursera|skillshare|masterclass|duolingo/i.test(text)) return 'education'
-
-  return 'other'
+  return keywordCategory(remittanceInfos)
 }
