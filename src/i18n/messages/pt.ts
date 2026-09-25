@@ -147,6 +147,7 @@ export const pt: Messages = {
     secureText: 'Usamos o TrueLayer com as normas de Open Banking. As suas credenciais bancárias nunca são guardadas. Recebemos apenas acesso de leitura para ver saldos e movimentos.',
     whereIsBank: 'Onde fica o seu banco?',
     connectWithTrueLayer: 'Ligar com TrueLayer',
+    connectWithSaltEdge: 'Ligar com Salt Edge',
   },
   settings: {
     title: 'Definições',

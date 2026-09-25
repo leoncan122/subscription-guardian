@@ -1,10 +1,21 @@
 // ==================== TrueLayer DB Types ====================
 // TrueLayer API response types live in src/lib/truelayer/client.ts (TL* types).
+//
+// truelayer_connections/truelayer_accounts also hold Salt Edge connections
+// (aggregator = 'saltedge'), so detected subscriptions, the dashboard and the
+// disconnect cleanup work the same whichever aggregator connected the bank.
+// For those rows the TrueLayer token columns stay null.
+
+export type BankAggregator = 'truelayer' | 'saltedge'
 
 export interface TrueLayerConnection {
   id: string
   user_id: string
+  aggregator: BankAggregator
+  // TrueLayer: credentials_id. Salt Edge: the connection's last consent id.
   consent_id: string
+  // Salt Edge connection id (null for TrueLayer connections)
+  saltedge_connection_id: string | null
   scopes: string[]
   access_token: string | null
   refresh_token: string | null
@@ -20,6 +31,7 @@ export interface TrueLayerConnection {
 export interface TrueLayerAccountDB {
   id: string
   connection_id: string
+  // the aggregator's account id (Salt Edge account id for Salt Edge rows)
   true_layer_account_id: string
   account_label: string | null
   currency: string | null

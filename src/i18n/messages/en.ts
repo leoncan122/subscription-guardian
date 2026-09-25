@@ -147,6 +147,7 @@ export const en = {
     secureText: 'We use TrueLayer with Open Banking standards. Your bank credentials are never stored. We only receive read-only access to view balances and transactions.',
     whereIsBank: 'Where is your bank?',
     connectWithTrueLayer: 'Connect with TrueLayer',
+    connectWithSaltEdge: 'Connect with Salt Edge',
   },
   settings: {
     title: 'Settings',
