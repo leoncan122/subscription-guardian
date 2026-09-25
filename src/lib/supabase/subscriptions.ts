@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase/client'
 import { Subscription, Category, BillingCycle } from '@/types/subscription'
 import { BASE_PATH } from '@/lib/constants'
+import type { BankAggregator } from '@/lib/truelayer/types'
 
 const VALID_CATEGORIES: Category[] = ['entertainment', 'productivity', 'storage', 'sports', 'education', 'utility', 'other']
 
@@ -83,6 +84,8 @@ export async function deleteSubscription(id: string): Promise<boolean> {
 export interface TrueLayerConnectionSummary {
   id: string
   status: string
+  // which Open Banking provider connected this bank (routes detect/disconnect)
+  aggregator: BankAggregator
   // Bank display name from TrueLayer; null for connections not synced since
   // it was added (see backfillProvider in src/lib/truelayer/service.ts).
   provider_name: string | null
@@ -105,7 +108,7 @@ export async function getTrueLayerConnections(): Promise<TrueLayerConnectionSumm
 
   const { data, error } = await supabase
     .from('truelayer_connections')
-    .select('id, status, provider_name, last_synced_at, created_at, truelayer_accounts(id, true_layer_account_id, account_label, currency, balance_amount, balance_currency)')
+    .select('id, status, aggregator, provider_name, last_synced_at, created_at, truelayer_accounts(id, true_layer_account_id, account_label, currency, balance_amount, balance_currency)')
     .eq('user_id', user.id)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
@@ -114,6 +117,7 @@ export async function getTrueLayerConnections(): Promise<TrueLayerConnectionSumm
   return (data || []).map((conn) => ({
     id: conn.id,
     status: conn.status,
+    aggregator: conn.aggregator ?? 'truelayer',
     provider_name: conn.provider_name ?? null,
     last_synced_at: conn.last_synced_at,
     created_at: conn.created_at,
@@ -255,9 +259,9 @@ function nextRenewalDate(lastSeen: string | null, cycle: BillingCycle): string {
 
 export type RedetectResult = 'ok' | 'reconnect_required' | 'failed'
 
-export async function redetectSubscriptions(connectionId: string): Promise<RedetectResult> {
+export async function redetectSubscriptions(connectionId: string, aggregator: BankAggregator): Promise<RedetectResult> {
   try {
-    const res = await fetch(`${BASE_PATH}/api/truelayer/detect`, {
+    const res = await fetch(`${BASE_PATH}/api/${aggregator}/detect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ connectionId }),
@@ -270,9 +274,9 @@ export async function redetectSubscriptions(connectionId: string): Promise<Redet
   }
 }
 
-export async function disconnectTrueLayerConnection(connectionId: string): Promise<boolean> {
+export async function disconnectBankConnection(connectionId: string, aggregator: BankAggregator): Promise<boolean> {
   try {
-    const res = await fetch(`${BASE_PATH}/api/truelayer/disconnect`, {
+    const res = await fetch(`${BASE_PATH}/api/${aggregator}/disconnect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ connectionId }),

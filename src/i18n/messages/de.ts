@@ -146,6 +146,7 @@ export const de: Messages = {
     secureText: 'Wir nutzen TrueLayer nach Open-Banking-Standards. Deine Bankzugangsdaten werden nie gespeichert. Wir erhalten nur Lesezugriff auf Kontostände und Umsätze.',
     whereIsBank: 'Wo ist deine Bank?',
     connectWithTrueLayer: 'Mit TrueLayer verbinden',
+    connectWithSaltEdge: 'Mit Salt Edge verbinden',
   },
   settings: {
     title: 'Einstellungen',

@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Subscription, Category } from '@/types/subscription';
 import {
   getSubscriptions, addSubscription, updateSubscription, deleteSubscription,
-  getTrueLayerConnections, TrueLayerConnectionSummary, disconnectTrueLayerConnection,
+  getTrueLayerConnections, TrueLayerConnectionSummary, disconnectBankConnection,
   getPendingDetectedSubscriptions, confirmDetectedSubscription, dismissDetectedSubscription, dismissDetectedSubscriptions, DetectedSubscriptionRow,
   redetectSubscriptions,
 } from '@/lib/supabase/subscriptions';
@@ -148,26 +148,26 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDismissAccount = async (connectionId: string) => {
+  const handleDismissAccount = async (conn: TrueLayerConnectionSummary) => {
     if (!confirm(t('dashboardAlerts.disconnectConfirm'))) return;
-    const disconnected = await disconnectTrueLayerConnection(connectionId);
+    const disconnected = await disconnectBankConnection(conn.id, conn.aggregator);
     if (disconnected) {
-      setBankConnections(prev => prev.filter(c => c.id !== connectionId));
+      setBankConnections(prev => prev.filter(c => c.id !== conn.id));
     } else {
       alert(t('dashboardAlerts.disconnectFailed'));
     }
   };
 
-  const handleCheckSubscriptions = async (connectionId: string) => {
+  const handleCheckSubscriptions = async (conn: TrueLayerConnectionSummary) => {
     setSyncing(true);
     try {
-      const result = await redetectSubscriptions(connectionId);
+      const result = await redetectSubscriptions(conn.id, conn.aggregator);
       if (result === 'ok') {
         const pending = await getPendingDetectedSubscriptions();
         setDetectedSubs(pending);
       } else if (result === 'reconnect_required') {
         // The server retired this connection; drop it and its pending items.
-        setBankConnections(prev => prev.filter(c => c.id !== connectionId));
+        setBankConnections(prev => prev.filter(c => c.id !== conn.id));
         setDetectedSubs(await getPendingDetectedSubscriptions());
         if (confirm(t('dashboardAlerts.reconnectConfirm'))) {
           router.push('/connect-bank');
@@ -408,7 +408,7 @@ export default function DashboardPage() {
                       : t('dashboard.notSynced')}
                   </span>
                   <button
-                    onClick={() => handleDismissAccount(conn.id)}
+                    onClick={() => handleDismissAccount(conn)}
                     className="text-xs text-gray-500 hover:text-red-400 transition-colors"
                   >
                     {t('common.dismiss')}
@@ -421,7 +421,7 @@ export default function DashboardPage() {
                   : t('dashboard.accountsLinked', { count: conn.accounts.length })}
               </p>
               <button
-                onClick={() => handleCheckSubscriptions(conn.id)}
+                onClick={() => handleCheckSubscriptions(conn)}
                 disabled={syncing}
                 className="w-full mt-3 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 text-xs rounded-lg transition-colors"
               >

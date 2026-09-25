@@ -146,6 +146,7 @@ export const eu: Messages = {
     secureText: 'TrueLayer erabiltzen dugu Open Banking estandarrekin. Zure banku-kredentzialak ez dira inoiz gordetzen. Saldoak eta mugimenduak ikusteko irakurketa-sarbidea soilik jasotzen dugu.',
     whereIsBank: 'Non dago zure bankua?',
     connectWithTrueLayer: 'Konektatu TrueLayer-ekin',
+    connectWithSaltEdge: 'Konektatu Salt Edge-rekin',
   },
   settings: {
     title: 'Ezarpenak',

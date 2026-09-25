@@ -92,6 +92,17 @@ export default function ConnectBankPage() {
           </div>
         </a>
 
+        {/* Salt Edge connect button */}
+        <a
+          href={`${BASE_PATH}/api/auth/saltedge?country=${country}`}
+          className="w-full block py-4 bg-gray-900 border border-gray-800 hover:border-gray-600 text-white rounded-xl font-medium text-center transition-colors"
+        >
+          <div className="flex items-center justify-center gap-3">
+            <span className="text-2xl">🏦</span>
+            <span>{t('connectBank.connectWithSaltEdge')}</span>
+          </div>
+        </a>
+
         {/* Back button */}
         <button
           onClick={() => router.push('/dashboard')}
