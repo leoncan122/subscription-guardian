@@ -218,8 +218,13 @@ export async function getPendingDetectedSubscriptions(): Promise<DetectedSubscri
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  // Only detections from banks that are still connected: rows left behind by
-  // a revoked connection (e.g. an old sandbox test bank) aren't shown.
+  // Detections from banks that are no longer connected are hidden, unless
+  // they were confirmed at some point (was_ever_confirmed, see migration
+  // 011) - those represent real charge history and must keep resurfacing no
+  // matter how many times the same bank gets reconnected, since every
+  // reconnect mints a brand new connection_id even for the same underlying
+  // account. Rows that were never confirmed and belong to a dead connection
+  // are just sandbox/testing clutter and stay hidden.
   // Two queries instead of an embedded join: the live schema has no foreign
   // key from detected_subscriptions.connection_id to truelayer_connections.
   const { data: connections, error: connError } = await supabase
@@ -230,15 +235,18 @@ export async function getPendingDetectedSubscriptions(): Promise<DetectedSubscri
 
   if (connError) throw connError
   const activeIds = (connections || []).map((c) => c.id)
-  if (activeIds.length === 0) return []
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('detected_subscriptions')
     .select('id, merchant_name, amount, currency, billing_cycle, category, occurrence_count, last_seen')
     .eq('user_id', user.id)
     .eq('is_confirmed', false)
-    .in('connection_id', activeIds)
-    .order('amount', { ascending: false })
+
+  query = activeIds.length > 0
+    ? query.or(`connection_id.in.(${activeIds.join(',')}),was_ever_confirmed.eq.true`)
+    : query.eq('was_ever_confirmed', true)
+
+  const { data, error } = await query.order('amount', { ascending: false })
 
   if (error) throw error
   return data || []
@@ -281,7 +289,7 @@ export async function confirmDetectedSubscription(detected: DetectedSubscription
 
   const { error } = await supabase
     .from('detected_subscriptions')
-    .update({ is_confirmed: true })
+    .update({ is_confirmed: true, was_ever_confirmed: true })
     .eq('id', detected.id)
 
   if (error) {
