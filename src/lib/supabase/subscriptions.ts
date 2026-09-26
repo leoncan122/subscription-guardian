@@ -211,7 +211,53 @@ export async function confirmDetectedSubscription(detected: DetectedSubscription
     console.error('Failed to mark detected subscription confirmed:', error)
   }
 
+  // Link back to the detected row (so future re-detections attach new
+  // charges to this subscription automatically) and hand over the charges
+  // already stored while it was still pending review.
+  const { error: linkError } = await supabase
+    .from('subscriptions')
+    .update({ detected_subscription_id: detected.id })
+    .eq('id', newSub.id)
+  if (linkError) console.error('Failed to link subscription to its detected source:', linkError)
+
+  const { error: chargesLinkError } = await supabase
+    .from('subscription_charges')
+    .update({ subscription_id: newSub.id })
+    .eq('detected_subscription_id', detected.id)
+    .is('subscription_id', null)
+  if (chargesLinkError) console.error('Failed to link charges to confirmed subscription:', chargesLinkError)
+
   return newSub
+}
+
+export interface SubscriptionCharge {
+  chargedOn: string
+  amount: number
+  currency: string
+}
+
+export async function getSubscriptionCharges(subscriptionId: string): Promise<SubscriptionCharge[]> {
+  if (!supabase) return []
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('subscription_charges')
+    .select('charged_on, amount, currency')
+    .eq('subscription_id', subscriptionId)
+    .eq('user_id', user.id)
+    .order('charged_on', { ascending: false })
+
+  if (error) {
+    console.error('Failed to load subscription charges:', error)
+    return []
+  }
+
+  return (data || []).map((row: { charged_on: string; amount: number; currency: string }) => ({
+    chargedOn: row.charged_on,
+    amount: row.amount,
+    currency: row.currency,
+  }))
 }
 
 export async function dismissDetectedSubscription(id: string): Promise<boolean> {

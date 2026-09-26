@@ -124,11 +124,52 @@ export async function storeDetectedSubscriptions(
       console.error(`Failed to save detected subscription ${merchantName}:`, error)
     } else if (data) {
       detected.push(data as DetectedSubscription)
+      await storeCharges(supabase, userId, data.id, sub, logTag)
     }
   }
 
   detected.sort((a, b) => b.amount - a.amount)
   return detected
+}
+
+// Persists every individual charge behind a detected subscription, so the
+// subscription detail view has real dates/amounts to show instead of just
+// the aggregate first_seen/last_seen/occurrence_count. Re-detections
+// upsert with ignoreDuplicates, so charges already stored are left alone.
+// If this detected row is already linked to a confirmed subscription
+// (subscriptions.detected_subscription_id, see migration 009), new charges
+// are linked to it immediately - detection can keep running after
+// confirmation without losing history.
+async function storeCharges(
+  supabase: SupabaseClient,
+  userId: string,
+  detectedSubscriptionId: string,
+  sub: RecurringSubscription,
+  logTag: string
+): Promise<void> {
+  if (sub.charges.length === 0) return
+
+  const { data: linkedSub } = await supabase
+    .from('subscriptions')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('detected_subscription_id', detectedSubscriptionId)
+    .maybeSingle()
+
+  const chargeRows = sub.charges.map((c) => ({
+    user_id: userId,
+    detected_subscription_id: detectedSubscriptionId,
+    subscription_id: linkedSub?.id ?? null,
+    amount: c.amount,
+    currency: sub.currency,
+    charged_on: c.date.toISOString().split('T')[0],
+  }))
+
+  const { error } = await supabase
+    .from('subscription_charges')
+    .upsert(chargeRows, { onConflict: 'detected_subscription_id,charged_on,amount', ignoreDuplicates: true })
+
+  if (error) console.error(`[${logTag}] Failed to save charges for ${sub.label}:`, error)
 }
 
 // Last-resort category guess from the transaction descriptions, for when the

@@ -31,3 +31,30 @@ body {
   width: 0px;
   background: transparent;
 }
+
+/* Chasing-color ring shown briefly on a subscription card while it opens
+   its detail view - see SubscriptionCard.tsx. Fades in, sweeps once around
+   the card, then fades out again so it doesn't pop in/out abruptly; its
+   duration is set inline to match OPEN_ANIMATION_MS. */
+@keyframes card-ring-spin {
+  0% {
+    opacity: 0;
+    transform: rotate(0deg);
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(1turn);
+  }
+}
+
+.card-ring-spin {
+  animation-name: card-ring-spin;
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: both;
+}

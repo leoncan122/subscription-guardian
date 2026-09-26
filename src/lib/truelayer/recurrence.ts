@@ -31,6 +31,9 @@ export interface RecurringSubscription {
   occurrenceCount: number
   // distinct prices, oldest first (length > 1 = the price changed)
   priceHistory: number[]
+  // every individual charge behind this subscription, each at the price it
+  // was actually charged at (not just the current one)
+  charges: { date: Date; amount: number }[]
   remittanceInfo: string[]
   classifications: string[][]
 }
@@ -119,6 +122,7 @@ export function buildRecurringSubscriptions(groups: AmountGroup[]): {
         lastSeen: dates[dates.length - 1],
         occurrenceCount: dates.length,
         priceHistory: [...members].reverse().map((g) => g.amount).filter((a, i, all) => all.indexOf(a) === i),
+        charges: members.flatMap((g) => g.dates.map((d) => ({ date: d, amount: g.amount }))),
         remittanceInfo: members.flatMap((g) => g.remittanceInfo),
         classifications: members.flatMap((g) => g.classifications),
       }
