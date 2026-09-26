@@ -8,6 +8,7 @@ export const pt: Messages = {
     unknownError: 'Erro desconhecido',
     backToDashboard: 'Voltar ao painel',
     confirm: 'Confirmar',
+    accept: 'OK',
     dismiss: 'Ignorar',
     cancel: 'Cancelar',
     save: 'Guardar',

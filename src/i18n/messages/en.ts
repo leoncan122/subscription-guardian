@@ -8,6 +8,7 @@ export const en = {
     unknownError: 'Unknown error',
     backToDashboard: 'Back to Dashboard',
     confirm: 'Confirm',
+    accept: 'OK',
     dismiss: 'Dismiss',
     cancel: 'Cancel',
     save: 'Save',

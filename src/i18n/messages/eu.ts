@@ -7,6 +7,7 @@ export const eu: Messages = {
     unknownError: 'Errore ezezaguna',
     backToDashboard: 'Itzuli panelera',
     confirm: 'Berretsi',
+    accept: 'Ados',
     dismiss: 'Baztertu',
     cancel: 'Utzi',
     save: 'Gorde',
