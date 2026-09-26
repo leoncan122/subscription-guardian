@@ -72,13 +72,42 @@ export async function deleteSubscription(id: string): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return false
 
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('detected_subscription_id')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
   const { error } = await supabase
     .from('subscriptions')
     .delete()
     .eq('id', id)
     .eq('user_id', user.id)
 
-  return !error
+  if (error) return false
+
+  if (sub?.detected_subscription_id) {
+    await unconfirmDetectedSubscriptions(user.id, [sub.detected_subscription_id])
+  }
+
+  return true
+}
+
+// Deleting a confirmed subscription must also un-confirm its source
+// detected_subscriptions row - otherwise a future re-detection (see
+// storeDetectedSubscriptions, which deliberately never resets is_confirmed
+// on its own) keeps treating it as already handled and it never resurfaces
+// for review, even though the subscription it was linked to is gone.
+async function unconfirmDetectedSubscriptions(userId: string, detectedIds: string[]): Promise<void> {
+  if (!supabase || detectedIds.length === 0) return
+  const { error } = await supabase
+    .from('detected_subscriptions')
+    .update({ is_confirmed: false })
+    .eq('user_id', userId)
+    .in('id', detectedIds)
+
+  if (error) console.error('Failed to un-confirm detected subscriptions:', error)
 }
 
 // Confirmed subscriptions outlive the bank connection they were detected
@@ -119,9 +148,13 @@ export async function deleteSubscriptions(ids: string[]): Promise<string[]> {
     .delete()
     .eq('user_id', user.id)
     .in('id', ids)
-    .select('id')
+    .select('id, detected_subscription_id')
 
   if (error || !data) return []
+
+  const detectedIds = data.map((s) => s.detected_subscription_id).filter((id): id is string => !!id)
+  await unconfirmDetectedSubscriptions(user.id, detectedIds)
+
   return data.map((s) => s.id)
 }
 
