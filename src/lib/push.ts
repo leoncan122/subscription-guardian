@@ -37,7 +37,10 @@ export type SendPushResult =
 
 export async function sendPush(
   target: PushTarget,
-  payload: { title: string; body: string; url: string }
+  // tag groups notifications at the OS level: two pushes with the same tag
+  // replace each other instead of stacking. Price-change and renewal alerts
+  // use different tags so a day with both still shows both.
+  payload: { title: string; body: string; url: string; tag: string }
 ): Promise<SendPushResult> {
   ensureConfigured()
   try {
@@ -47,7 +50,7 @@ export async function sendPush(
         title: payload.title,
         body: payload.body,
         data: { url: payload.url },
-        tag: 'price-change',
+        tag: payload.tag,
       })
     )
     return 'sent'
@@ -59,6 +62,11 @@ export async function sendPush(
   }
 }
 
+// Notification copy, kept separate from the UI's i18n message files
+// (src/i18n/messages/*) - this text is generated server-side by a cron job
+// and never rendered through React/useTranslation, so it doesn't belong in
+// that catalog.
+
 interface PriceChangeInfo {
   name: string
   oldAmount: number
@@ -66,11 +74,7 @@ interface PriceChangeInfo {
   currency: string
 }
 
-// Notification copy, kept separate from the UI's i18n message files
-// (src/i18n/messages/*) - this text is generated server-side by a cron job
-// and never rendered through React/useTranslation, so it doesn't belong in
-// that catalog.
-const COPY: Record<string, {
+const PRICE_CHANGE_COPY: Record<string, {
   title: string
   single: (name: string, oldFormatted: string, newFormatted: string) => string
   multiple: (count: number) => string
@@ -116,14 +120,14 @@ const DEFAULT_LANGUAGE = 'en'
 
 function resolvePushLanguage(locale: string | null | undefined): string {
   const base = locale?.split('-')[0]?.toLowerCase() ?? ''
-  return base in COPY ? base : DEFAULT_LANGUAGE
+  return base in PRICE_CHANGE_COPY ? base : DEFAULT_LANGUAGE
 }
 
 export function buildPriceChangeNotification(
   locale: string | null | undefined,
   changes: PriceChangeInfo[]
 ): { title: string; body: string } {
-  const copy = COPY[resolvePushLanguage(locale)]
+  const copy = PRICE_CHANGE_COPY[resolvePushLanguage(locale)]
   const numberFormatLocale = locale || 'en-US'
 
   if (changes.length === 1) {
@@ -139,4 +143,67 @@ export function buildPriceChangeNotification(
   }
 
   return { title: copy.title, body: copy.multiple(changes.length) }
+}
+
+interface RenewalReminderInfo {
+  name: string
+  // always 1 or 3 - see the daily cron, which only ever reminds 1 or 3 days
+  // before renewal_date
+  daysUntil: number
+}
+
+const RENEWAL_COPY: Record<string, {
+  title: string
+  single: (name: string, daysUntil: number) => string
+  multiple: (count: number) => string
+}> = {
+  es: {
+    title: '📅 Renovación próxima',
+    single: (n, d) => d === 1 ? `${n} se renueva mañana` : `${n} se renueva en 3 días`,
+    multiple: (c) => `${c} de tus suscripciones se renuevan pronto`,
+  },
+  en: {
+    title: '📅 Upcoming renewal',
+    single: (n, d) => d === 1 ? `${n} renews tomorrow` : `${n} renews in 3 days`,
+    multiple: (c) => `${c} of your subscriptions renew soon`,
+  },
+  it: {
+    title: '📅 Rinnovo in arrivo',
+    single: (n, d) => d === 1 ? `${n} si rinnova domani` : `${n} si rinnova tra 3 giorni`,
+    multiple: (c) => `${c} dei tuoi abbonamenti si rinnovano presto`,
+  },
+  fr: {
+    title: '📅 Renouvellement à venir',
+    single: (n, d) => d === 1 ? `${n} se renouvelle demain` : `${n} se renouvelle dans 3 jours`,
+    multiple: (c) => `${c} de vos abonnements se renouvellent bientôt`,
+  },
+  de: {
+    title: '📅 Bevorstehende Verlängerung',
+    single: (n, d) => d === 1 ? `${n} verlängert sich morgen` : `${n} verlängert sich in 3 Tagen`,
+    multiple: (c) => `${c} deiner Abos verlängern sich bald`,
+  },
+  eu: {
+    title: '📅 Berritze hurbila',
+    single: (n, d) => d === 1 ? `${n} bihar berrituko da` : `${n} 3 egun barru berrituko da`,
+    multiple: (c) => `Zure ${c} harpidetza laster berrituko dira`,
+  },
+  pt: {
+    title: '📅 Renovação próxima',
+    single: (n, d) => d === 1 ? `${n} renova amanhã` : `${n} renova em 3 dias`,
+    multiple: (c) => `${c} das tuas subscrições renovam em breve`,
+  },
+}
+
+export function buildRenewalReminderNotification(
+  locale: string | null | undefined,
+  reminders: RenewalReminderInfo[]
+): { title: string; body: string } {
+  const copy = RENEWAL_COPY[resolvePushLanguage(locale)]
+
+  if (reminders.length === 1) {
+    const reminder = reminders[0]
+    return { title: copy.title, body: copy.single(reminder.name, reminder.daysUntil) }
+  }
+
+  return { title: copy.title, body: copy.multiple(reminders.length) }
 }
