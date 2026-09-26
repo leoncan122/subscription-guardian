@@ -127,6 +127,8 @@ export const es: Messages = {
     deleteFailed: 'No se pudo eliminar la suscripción',
     disconnectConfirm: '¿Desconectar esta cuenta bancaria?',
     disconnectFailed: 'No se pudo desconectar la cuenta bancaria',
+    disconnectDeleteSubscriptionsConfirm_one: 'Esta cuenta tiene 1 suscripción confirmada. ¿Eliminarla también?',
+    disconnectDeleteSubscriptionsConfirm_other: 'Esta cuenta tiene {count} suscripciones confirmadas. ¿Eliminarlas también?',
     reconnectConfirm: 'El acceso a tu banco ha caducado. ¿Volver a conectarlo ahora?',
     checkFailed: 'No se pudieron buscar suscripciones',
     confirmFailed: 'No se pudo confirmar la suscripción',

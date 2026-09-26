@@ -128,6 +128,8 @@ export const pt: Messages = {
     deleteFailed: 'Não foi possível eliminar a subscrição',
     disconnectConfirm: 'Desligar esta conta bancária?',
     disconnectFailed: 'Não foi possível desligar a conta bancária',
+    disconnectDeleteSubscriptionsConfirm_one: 'Esta conta tem 1 subscrição confirmada. Eliminar também?',
+    disconnectDeleteSubscriptionsConfirm_other: 'Esta conta tem {count} subscrições confirmadas. Eliminar também?',
     reconnectConfirm: 'O acesso ao seu banco expirou. Voltar a ligar o banco agora?',
     checkFailed: 'Não foi possível procurar subscrições',
     confirmFailed: 'Não foi possível confirmar a subscrição',

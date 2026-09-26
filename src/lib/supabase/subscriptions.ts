@@ -81,6 +81,50 @@ export async function deleteSubscription(id: string): Promise<boolean> {
   return !error
 }
 
+// Confirmed subscriptions outlive the bank connection they were detected
+// from (see revokeConnection), so disconnecting a bank doesn't remove them
+// on its own. This finds the ones that came from a given connection, via
+// their link to detected_subscriptions, so the caller can offer to delete
+// them together with the connection.
+export async function getSubscriptionIdsForConnection(connectionId: string): Promise<string[]> {
+  if (!supabase) return []
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data: detected, error: detectedError } = await supabase
+    .from('detected_subscriptions')
+    .select('id')
+    .eq('connection_id', connectionId)
+    .eq('user_id', user.id)
+
+  if (detectedError || !detected || detected.length === 0) return []
+
+  const { data: subs, error } = await supabase
+    .from('subscriptions')
+    .select('id')
+    .eq('user_id', user.id)
+    .in('detected_subscription_id', detected.map((d) => d.id))
+
+  if (error || !subs) return []
+  return subs.map((s) => s.id)
+}
+
+export async function deleteSubscriptions(ids: string[]): Promise<string[]> {
+  if (!supabase || ids.length === 0) return []
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .delete()
+    .eq('user_id', user.id)
+    .in('id', ids)
+    .select('id')
+
+  if (error || !data) return []
+  return data.map((s) => s.id)
+}
+
 export interface TrueLayerConnectionSummary {
   id: string
   status: string

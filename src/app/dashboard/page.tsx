@@ -7,6 +7,7 @@ import { Subscription, Category } from '@/types/subscription';
 import {
   getSubscriptions, addSubscription, updateSubscription, deleteSubscription,
   getTrueLayerConnections, TrueLayerConnectionSummary, disconnectBankConnection,
+  getSubscriptionIdsForConnection, deleteSubscriptions,
   getPendingDetectedSubscriptions, confirmDetectedSubscription, dismissDetectedSubscription, dismissDetectedSubscriptions, DetectedSubscriptionRow,
   redetectSubscriptions, getSubscriptionCharges, SubscriptionCharge,
 } from '@/lib/supabase/subscriptions';
@@ -168,11 +169,23 @@ export default function DashboardPage() {
 
   const handleDismissAccount = async (conn: TrueLayerConnectionSummary) => {
     if (!confirm(t('dashboardAlerts.disconnectConfirm'))) return;
+
+    // Confirmed subscriptions outlive the connection they were detected
+    // from, so ask separately whether to take them down too.
+    const linkedSubscriptionIds = await getSubscriptionIdsForConnection(conn.id);
+    const alsoDeleteSubscriptions = linkedSubscriptionIds.length > 0 &&
+      confirm(t('dashboardAlerts.disconnectDeleteSubscriptionsConfirm', { count: linkedSubscriptionIds.length }));
+
     const disconnected = await disconnectBankConnection(conn.id, conn.aggregator);
-    if (disconnected) {
-      setBankConnections(prev => prev.filter(c => c.id !== conn.id));
-    } else {
+    if (!disconnected) {
       alert(t('dashboardAlerts.disconnectFailed'));
+      return;
+    }
+    setBankConnections(prev => prev.filter(c => c.id !== conn.id));
+
+    if (alsoDeleteSubscriptions) {
+      const deletedIds = new Set(await deleteSubscriptions(linkedSubscriptionIds));
+      setSubscriptions(prev => prev.filter(s => !deletedIds.has(s.id)));
     }
   };
 
