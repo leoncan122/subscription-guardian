@@ -2,7 +2,7 @@
 
 Plan para que las suscripciones confirmadas se mantengan al día con lo que el banco informa (divisa, cambios de importe) sin sobrescribir lo que el usuario ha decidido.
 
-**Estado general:** ⏳ Pendiente · ✅ corregida la agrupación por importe (requisito de la Fase 4)
+**Estado general:** ⏳ Pendiente · ✅ Fase 1 (vínculo) implementada al construir `docs/DETALLE_SUSCRIPCION.md` · ✅ corregida la agrupación por importe (requisito de la Fase 4)
 
 ---
 
@@ -30,12 +30,14 @@ El aviso de subida de precio es además una funcionalidad valiosa en sí misma: 
 
 ## 3. Fases
 
-### Fase 1 — Vínculo real entre las dos filas
+### Fase 1 — Vínculo real entre las dos filas ✅
 
-- [ ] Migración: añadir `subscriptions.detected_subscription_id UUID REFERENCES detected_subscriptions(id) ON DELETE SET NULL`.
-- [ ] `confirmDetectedSubscription` guarda el vínculo al crear la suscripción.
-- [ ] Rellenar el vínculo de las suscripciones confirmadas que ya existen, por nombre y solo si coincide exactamente una (`user_id` + `name` = `merchant_name`, `is_confirmed = true`, `payment_method = 'Bank Account'`).
-- [ ] Ojo: "Dismiss" **borra** la fila detectada (`dismissDetectedSubscription`). Con `ON DELETE SET NULL` la suscripción confirmada sobrevive pero pierde el vínculo; hay que revisar que ninguna ruta borre filas ya confirmadas.
+- [x] Migración `009_subscription_detected_link.sql`: añade `subscriptions.detected_subscription_id UUID REFERENCES detected_subscriptions(id) ON DELETE SET NULL`.
+- [x] `confirmDetectedSubscription` guarda el vínculo al confirmar la suscripción.
+- [x] Rellenado el vínculo de las suscripciones confirmadas que ya existían, por nombre y solo si coincide exactamente una (`user_id` + `name` = `merchant_name`, `is_confirmed = true`, `payment_method = 'Bank Account'`) — incluido en la propia migración.
+- [x] "Dismiss" solo borra detectadas **no confirmadas** (`dismissDetectedSubscription`/`.eq('is_confirmed', false)` en el dashboard); ninguna ruta borra una detectada ya vinculada a una confirmada, así que `ON DELETE SET NULL` no llega a activarse en el uso normal.
+
+Implementado como parte de `docs/DETALLE_SUSCRIPCION.md` (esa feature necesitaba exactamente este vínculo para poder guardar y encontrar el historial de cargos). Las Fases 2–4 de aquí abajo siguen pendientes.
 
 ### Fase 2 — Saber qué ha tocado el usuario
 

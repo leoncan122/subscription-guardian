@@ -8,11 +8,12 @@ import {
   getSubscriptions, addSubscription, updateSubscription, deleteSubscription,
   getTrueLayerConnections, TrueLayerConnectionSummary, disconnectBankConnection,
   getPendingDetectedSubscriptions, confirmDetectedSubscription, dismissDetectedSubscription, dismissDetectedSubscriptions, DetectedSubscriptionRow,
-  redetectSubscriptions,
+  redetectSubscriptions, getSubscriptionCharges, SubscriptionCharge,
 } from '@/lib/supabase/subscriptions';
 import { syncFromCloud, syncToCloud } from '@/lib/supabase/sync';
 import { Header, TabBar } from '@/components/Header';
 import { SubscriptionCard } from '@/components/SubscriptionCard';
+import { SubscriptionDetailModal } from '@/components/SubscriptionDetailModal';
 import { SummaryCard } from '@/components/SummaryCard';
 import { BASE_PATH } from '@/lib/constants';
 import { getCategoryColor, formatCurrency } from '@/utils/helpers';
@@ -63,6 +64,8 @@ export default function DashboardPage() {
   const [bankConnections, setBankConnections] = useState<TrueLayerConnectionSummary[]>([]);
   const [detectedSubs, setDetectedSubs] = useState<DetectedSubscriptionRow[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
+  const [selectedCharges, setSelectedCharges] = useState<SubscriptionCharge[] | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -134,6 +137,21 @@ export default function DashboardPage() {
       console.error('Failed to update subscription:', error);
       alert(t('dashboardAlerts.updateFailed'));
     }
+  };
+
+  const handleOpenDetail = (subscription: Subscription) => {
+    setSelectedSubscriptionId(subscription.id);
+    setSelectedCharges(null);
+    getSubscriptionCharges(subscription.id).then(setSelectedCharges);
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedSubscriptionId(null);
+    setSelectedCharges(null);
+  };
+
+  const handleSaveCancellationInfo = async (id: string, info: string) => {
+    await handleUpdateSubscription(id, { cancellationInfo: info });
   };
 
   const handleDeleteSubscription = async (id: string) => {
@@ -297,6 +315,8 @@ export default function DashboardPage() {
   const suggestedCurrency = suggestBaseCurrency(bankConnections, baseCurrency);
   const showCurrencySuggestion =
     !!settings.onboardedAt && !!suggestedCurrency && suggestedCurrency !== dismissedSuggestion;
+
+  const selectedSubscription = subscriptions.find(s => s.id === selectedSubscriptionId) ?? null;
 
   const availableCategories = [...new Set(subscriptions.map(s => s.category))].sort();
   const availablePaymentMethods = [...new Set(subscriptions.map(s => s.paymentMethod).filter(Boolean))].sort();
@@ -612,7 +632,7 @@ export default function DashboardPage() {
                 <SubscriptionCard
                   key={sub.id}
                   subscription={sub}
-                  onEdit={(id) => handleUpdateSubscription(id, {})}
+                  onOpenDetail={handleOpenDetail}
                   onDelete={handleDeleteSubscription}
                   onToggle={(id, active) => handleUpdateSubscription(id, { active })}
                 />
@@ -624,6 +644,17 @@ export default function DashboardPage() {
 
       {/* Tab bar */}
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {selectedSubscription && (
+        <SubscriptionDetailModal
+          key={selectedSubscription.id}
+          subscription={selectedSubscription}
+          charges={selectedCharges}
+          locale={settings.locale}
+          onClose={handleCloseDetail}
+          onSaveCancellationInfo={handleSaveCancellationInfo}
+        />
+      )}
     </div>
   );
 }
