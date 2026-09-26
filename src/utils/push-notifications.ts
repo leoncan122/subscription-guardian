@@ -1,3 +1,5 @@
+import { BASE_PATH } from "@/lib/constants";
+
 export async function requestNotificationPermission(): Promise<boolean> {
   if (!("Notification" in window)) {
     console.warn("Notifications not supported");
@@ -38,29 +40,26 @@ export async function subscribeToPush(): Promise<boolean> {
     const granted = await requestNotificationPermission();
     if (!granted) return false;
 
-    // VAPID public key - replace with your own in production
-    // Generate with: npx web-push generate-vapid-keys
-    const vapidPublicKey =
-      "BEl62iUY7PtYwJ_W9tZVNLtPv4mcCWb9hDfjtFAR-6VUrn0W6IkWEOY6YTB9unEevKX8QClbm3J-4s8Vz0B2cF0";
+    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!vapidPublicKey) {
+      console.warn("NEXT_PUBLIC_VAPID_PUBLIC_KEY is not configured - push notifications are disabled");
+      return false;
+    }
 
     const sub = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: vapidPublicKey,
     });
 
-    // In production, send this subscription to your backend
-    console.log("Push subscription created:", sub);
-
     try {
-      await fetch("/api/push/subscribe", {
+      const res = await fetch(`${BASE_PATH}/api/push/subscribe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(sub),
       });
-      console.log("Subscription sent to backend");
+      if (!res.ok) console.warn("Failed to save push subscription on the backend");
     } catch (error) {
-      // Backend endpoint might not exist yet - that's fine for now
-      console.log("Backend not available yet, subscription stored locally");
+      console.error("Failed to reach the push subscribe endpoint:", error);
     }
 
     return true;

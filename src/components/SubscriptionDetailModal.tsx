@@ -113,15 +113,26 @@ export function SubscriptionDetailModal({
             </p>
           ) : (
             <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-              {charges.map((c, i) => (
-                <div
-                  key={`${c.chargedOn}-${i}`}
-                  className="flex items-center justify-between text-sm py-2 border-b border-gray-800/60 last:border-0"
-                >
-                  <span className="text-gray-400">{new Date(c.chargedOn).toLocaleDateString(locale)}</span>
-                  <span className="text-white">{formatCurrency(c.amount, c.currency, locale)}</span>
-                </div>
-              ))}
+              {/* charges are newest first; a row whose amount differs from the
+                  one right after it (older) is where the price changed */}
+              {charges.map((c, i) => {
+                const older = i < charges.length - 1 ? charges[i + 1].amount : null;
+                const priceRose = older !== null && c.amount > older;
+                const priceFell = older !== null && c.amount < older;
+                return (
+                  <div
+                    key={`${c.chargedOn}-${i}`}
+                    className="flex items-center justify-between text-sm py-2 border-b border-gray-800/60 last:border-0"
+                  >
+                    <span className="text-gray-400">{new Date(c.chargedOn).toLocaleDateString(locale)}</span>
+                    <span className={priceRose ? "text-yellow-400 font-medium" : priceFell ? "text-blue-400 font-medium" : "text-white"}>
+                      {priceRose && "▲ "}
+                      {priceFell && "▼ "}
+                      {formatCurrency(c.amount, c.currency, locale)}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

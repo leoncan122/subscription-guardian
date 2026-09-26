@@ -367,6 +367,94 @@ export async function dismissDetectedSubscriptions(ids: string[]): Promise<boole
   return !error
 }
 
+export interface PendingPriceChangeRow {
+  id: string
+  subscriptionId: string
+  subscriptionName: string
+  oldAmount: number
+  newAmount: number
+  currency: string
+}
+
+export async function getPendingPriceChanges(): Promise<PendingPriceChangeRow[]> {
+  if (!supabase) return []
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('subscription_price_changes')
+    .select('id, subscription_id, old_amount, new_amount, currency')
+    .eq('user_id', user.id)
+    .eq('status', 'pending')
+    .order('detected_at', { ascending: false })
+
+  if (error) {
+    console.error('Failed to load pending price changes:', error)
+    return []
+  }
+  if (!data || data.length === 0) return []
+
+  // Separate query rather than an embedded join (same reasoning as
+  // getPendingDetectedSubscriptions above): keeps this independent of
+  // whatever relationship PostgREST infers from the schema.
+  const { data: subs, error: subsError } = await supabase
+    .from('subscriptions')
+    .select('id, name')
+    .in('id', data.map((row) => row.subscription_id))
+
+  if (subsError) console.error('Failed to load subscription names for price changes:', subsError)
+  const namesById = new Map((subs || []).map((s) => [s.id, s.name as string]))
+
+  return data.map((row) => ({
+    id: row.id,
+    subscriptionId: row.subscription_id,
+    subscriptionName: namesById.get(row.subscription_id) ?? '',
+    oldAmount: row.old_amount,
+    newAmount: row.new_amount,
+    currency: row.currency,
+  }))
+}
+
+// Adopts the bank's new price as the subscription's tracked amount and
+// resolves the pending row.
+export async function acceptPriceChange(priceChange: PendingPriceChangeRow): Promise<boolean> {
+  if (!supabase) return false
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return false
+
+  const { error: updateError } = await supabase
+    .from('subscriptions')
+    .update({ amount: priceChange.newAmount, updated_at: new Date().toISOString() })
+    .eq('id', priceChange.subscriptionId)
+    .eq('user_id', user.id)
+
+  if (updateError) {
+    console.error('Failed to apply new subscription price:', updateError)
+    return false
+  }
+
+  const { error: deleteError } = await supabase
+    .from('subscription_price_changes')
+    .delete()
+    .eq('id', priceChange.id)
+
+  if (deleteError) console.error('Failed to clear accepted price change:', deleteError)
+  return true
+}
+
+// Keeps the subscription's amount as-is; stays hidden until the bank's
+// price changes again (see syncPriceChange in subscription-detection.ts).
+export async function dismissPriceChange(id: string): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase
+    .from('subscription_price_changes')
+    .update({ status: 'dismissed' })
+    .eq('id', id)
+
+  if (error) console.error('Failed to dismiss price change:', error)
+  return !error
+}
+
 function normalizeBillingCycle(cycle: string): BillingCycle {
   if (cycle === 'weekly' || cycle === 'monthly' || cycle === 'quarterly' || cycle === 'yearly') return cycle
   if (cycle === 'biweekly') return 'weekly'

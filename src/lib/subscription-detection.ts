@@ -151,7 +151,7 @@ async function storeCharges(
 
   const { data: linkedSub } = await supabase
     .from('subscriptions')
-    .select('id')
+    .select('id, amount, currency')
     .eq('user_id', userId)
     .eq('detected_subscription_id', detectedSubscriptionId)
     .maybeSingle()
@@ -170,6 +170,60 @@ async function storeCharges(
     .upsert(chargeRows, { onConflict: 'detected_subscription_id,charged_on,amount', ignoreDuplicates: true })
 
   if (error) console.error(`[${logTag}] Failed to save charges for ${sub.label}:`, error)
+
+  if (linkedSub) await syncPriceChange(supabase, userId, linkedSub, sub, logTag)
+}
+
+// Flags a price change on an already-confirmed subscription: the bank's
+// latest charge (sub.amount, re-stitched across the whole history by
+// buildRecurringSubscriptions on every re-detection) no longer matches what
+// the user has saved (linkedSub.amount). Only one row is kept per
+// subscription (see migration 012) - it tracks "the last price change we
+// know about", not a log:
+//   - matches again (e.g. the user edited the amount by hand) -> resolved, delete it
+//   - a further, different change on top of one already flagged -> re-flag as pending
+//   - same new_amount already known (whether pending or dismissed) -> leave alone,
+//     so dismissing it isn't immediately undone by the very next re-detection
+// Currency mismatches are skipped (v1) - not a price change, just noise.
+async function syncPriceChange(
+  supabase: SupabaseClient,
+  userId: string,
+  linkedSub: { id: string; amount: number; currency: string },
+  sub: RecurringSubscription,
+  logTag: string
+): Promise<void> {
+  if (sub.currency !== linkedSub.currency) return
+
+  if (sub.amount === linkedSub.amount) {
+    const { error } = await supabase
+      .from('subscription_price_changes')
+      .delete()
+      .eq('subscription_id', linkedSub.id)
+    if (error) console.error(`[${logTag}] Failed to clear resolved price change for ${sub.label}:`, error)
+    return
+  }
+
+  const { data: existing } = await supabase
+    .from('subscription_price_changes')
+    .select('new_amount')
+    .eq('subscription_id', linkedSub.id)
+    .maybeSingle()
+
+  if (existing && existing.new_amount === sub.amount) return
+
+  const { error } = await supabase
+    .from('subscription_price_changes')
+    .upsert({
+      user_id: userId,
+      subscription_id: linkedSub.id,
+      old_amount: linkedSub.amount,
+      new_amount: sub.amount,
+      currency: sub.currency,
+      status: 'pending',
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'subscription_id' })
+
+  if (error) console.error(`[${logTag}] Failed to flag price change for ${sub.label}:`, error)
 }
 
 // Last-resort category guess from the transaction descriptions, for when the

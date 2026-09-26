@@ -79,10 +79,10 @@ self.addEventListener("push", (event) => {
   const title = data.title || "Subscription Guardian";
   const options = {
     body: data.body || "You have a new reminder!",
-    icon: "/icon-192.png",
-    badge: "/icon-192.png",
+    icon: `${basePath}/icon-192.png`,
+    badge: `${basePath}/icon-192.png`,
     vibrate: [200, 100, 200],
-    data: data.data || { url: "/" },
+    data: data.data || { url: `${basePath}/` },
     actions: data.actions || [
       { action: "view", title: "View" },
       { action: "close", title: "Dismiss" },
