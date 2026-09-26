@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { requestNotificationPermission, subscribeToPush } from "@/utils/push-notifications";
+import { subscribeToPush } from "@/utils/push-notifications";
 import { BASE_PATH } from "@/lib/constants";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function RegisterSW() {
+  const { user } = useAuth();
   const [isPWA, setIsPWA] = useState(false);
 
   useEffect(() => {
@@ -58,10 +60,15 @@ export function RegisterSW() {
         registrations.forEach((registration) => registration.unregister());
       });
     }
-
-    // Request notification permission and subscribe to push
-    subscribeToPush();
   }, []);
+
+  useEffect(() => {
+    // Subscribing posts to an authenticated endpoint (/api/push/subscribe)
+    // - without a logged-in user it would just prompt anonymous visitors
+    // (e.g. on /login) for notification permission for no reason. Kept in
+    // its own effect so logging in/out doesn't re-run SW registration above.
+    if (user) subscribeToPush();
+  }, [user]);
 
   return null;
 }

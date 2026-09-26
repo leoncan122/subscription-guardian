@@ -10,6 +10,7 @@ import {
   getSubscriptionIdsForConnection, deleteSubscriptions,
   getPendingDetectedSubscriptions, confirmDetectedSubscription, dismissDetectedSubscription, dismissDetectedSubscriptions, DetectedSubscriptionRow,
   redetectSubscriptions, getSubscriptionCharges, SubscriptionCharge,
+  getPendingPriceChanges, acceptPriceChange, dismissPriceChange, PendingPriceChangeRow,
 } from '@/lib/supabase/subscriptions';
 import { syncFromCloud, syncToCloud } from '@/lib/supabase/sync';
 import { Header, TabBar } from '@/components/Header';
@@ -66,6 +67,7 @@ export default function DashboardPage() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [bankConnections, setBankConnections] = useState<TrueLayerConnectionSummary[]>([]);
   const [detectedSubs, setDetectedSubs] = useState<DetectedSubscriptionRow[]>([]);
+  const [priceChanges, setPriceChanges] = useState<PendingPriceChangeRow[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [selectedCharges, setSelectedCharges] = useState<SubscriptionCharge[] | null>(null);
@@ -88,14 +90,29 @@ export default function DashboardPage() {
 
     const loadData = async () => {
       setLoading(true);
-      const [subsResult, banksResult, detectedResult] = await Promise.allSettled([
+      const [subsResult, banksResult, detectedResult, priceChangesResult] = await Promise.allSettled([
         getSubscriptions(),
         getTrueLayerConnections(),
         getPendingDetectedSubscriptions(),
+        getPendingPriceChanges(),
       ]);
 
       if (subsResult.status === 'fulfilled') {
         setSubscriptions(subsResult.value);
+
+        // Deep link from a push notification (see
+        // src/app/api/cron/price-change-alerts and the notificationclick
+        // handler in public/sw.js): ?subscription=<id> opens that
+        // subscription's detail modal directly instead of just landing on
+        // the dashboard.
+        const subscriptionId = new URLSearchParams(window.location.search).get('subscription');
+        const target = subscriptionId ? subsResult.value.find(s => s.id === subscriptionId) : undefined;
+        if (target) {
+          setSelectedSubscriptionId(target.id);
+          setSelectedCharges(null);
+          getSubscriptionCharges(target.id).then(setSelectedCharges);
+          router.replace('/dashboard');
+        }
       } else {
         console.error('Failed to load subscriptions:', subsResult.reason);
       }
@@ -112,11 +129,17 @@ export default function DashboardPage() {
         console.error('Failed to load detected subscriptions:', detectedResult.reason);
       }
 
+      if (priceChangesResult.status === 'fulfilled') {
+        setPriceChanges(priceChangesResult.value);
+      } else {
+        console.error('Failed to load price changes:', priceChangesResult.reason);
+      }
+
       setLoading(false);
     };
 
     loadData();
-  }, [user, authLoading]);
+  }, [user, authLoading, router]);
 
   const handleAddSubscription = async (sub: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
@@ -205,8 +228,12 @@ export default function DashboardPage() {
     try {
       const result = await redetectSubscriptions(conn.id, conn.aggregator);
       if (result === 'ok') {
-        const pending = await getPendingDetectedSubscriptions();
+        const [pending, pendingPriceChanges] = await Promise.all([
+          getPendingDetectedSubscriptions(),
+          getPendingPriceChanges(),
+        ]);
         setDetectedSubs(pending);
+        setPriceChanges(pendingPriceChanges);
       } else if (result === 'reconnect_required') {
         // The server retired this connection; drop it and its pending items.
         setBankConnections(prev => prev.filter(c => c.id !== conn.id));
@@ -264,6 +291,37 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('Failed to dismiss subscription:', error);
       await alertDialog(t('dashboardAlerts.dismissFailed'), t('common.accept'));
+    }
+  };
+
+  const handleAcceptPriceChange = async (priceChange: PendingPriceChangeRow) => {
+    try {
+      const accepted = await acceptPriceChange(priceChange);
+      if (accepted) {
+        setPriceChanges(prev => prev.filter(p => p.id !== priceChange.id));
+        setSubscriptions(prev => prev.map(s =>
+          s.id === priceChange.subscriptionId ? { ...s, amount: priceChange.newAmount } : s
+        ));
+      } else {
+        await alertDialog(t('dashboardAlerts.acceptPriceChangeFailed'), t('common.accept'));
+      }
+    } catch (error) {
+      console.error('Failed to accept price change:', error);
+      await alertDialog(t('dashboardAlerts.acceptPriceChangeFailed'), t('common.accept'));
+    }
+  };
+
+  const handleDismissPriceChange = async (id: string) => {
+    try {
+      const dismissed = await dismissPriceChange(id);
+      if (dismissed) {
+        setPriceChanges(prev => prev.filter(p => p.id !== id));
+      } else {
+        await alertDialog(t('dashboardAlerts.dismissPriceChangeFailed'), t('common.accept'));
+      }
+    } catch (error) {
+      console.error('Failed to dismiss price change:', error);
+      await alertDialog(t('dashboardAlerts.dismissPriceChangeFailed'), t('common.accept'));
     }
   };
 
@@ -490,6 +548,43 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Price changes on already-confirmed subscriptions */}
+      {priceChanges.length > 0 && (
+        <div className="p-4">
+          <h2 className="text-lg font-semibold text-white mb-3">
+            {t('dashboard.priceChangesTitle', { count: priceChanges.length })}
+          </h2>
+          <div className="space-y-2">
+            {priceChanges.map((pc) => (
+              <div key={pc.id} className="bg-gray-900 rounded-xl p-4 border border-yellow-800/60">
+                <p className="text-white font-medium text-sm mb-1">{pc.subscriptionName}</p>
+                <p className="text-xs text-gray-400 mb-3">
+                  {formatCurrency(pc.oldAmount, pc.currency, settings.locale)}
+                  {' → '}
+                  <span className="text-yellow-400 font-medium">
+                    {formatCurrency(pc.newAmount, pc.currency, settings.locale)}
+                  </span>
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleAcceptPriceChange(pc)}
+                    className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors"
+                  >
+                    {t('common.accept')}
+                  </button>
+                  <button
+                    onClick={() => handleDismissPriceChange(pc.id)}
+                    className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded-lg transition-colors"
+                  >
+                    {t('common.dismiss')}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Detected subscriptions pending review, grouped by category */}
       {detectedSubs.length > 0 && (
         <div className="p-4">
@@ -664,6 +759,7 @@ export default function DashboardPage() {
                 <SubscriptionCard
                   key={sub.id}
                   subscription={sub}
+                  priceChange={priceChanges.find(p => p.subscriptionId === sub.id)}
                   onOpenDetail={handleOpenDetail}
                   onDelete={handleDeleteSubscription}
                   onToggle={(id, active) => handleUpdateSubscription(id, { active })}
