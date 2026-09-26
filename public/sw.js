@@ -44,8 +44,14 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const clone = response.clone();
-          caches.open(DATA_CACHE).then((cache) => cache.put(request, clone));
+          // The Cache API only accepts GET requests - caching a POST (e.g.
+          // /api/push/subscribe) throws and, left unhandled, surfaces as an
+          // "Uncaught (in promise)" console error despite the real response
+          // already having gone out via respondWith below.
+          if (request.method === "GET") {
+            const clone = response.clone();
+            caches.open(DATA_CACHE).then((cache) => cache.put(request, clone)).catch(() => {});
+          }
           return response;
         })
         .catch(() => caches.match(request))
@@ -59,8 +65,8 @@ self.addEventListener("fetch", (event) => {
       return (
         cached ||
         fetch(request).then((response) => {
-          if (response.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
+          if (response.status === 200 && request.method === "GET") {
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone())).catch(() => {});
           }
           return response;
         })
