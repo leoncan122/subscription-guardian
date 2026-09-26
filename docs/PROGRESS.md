@@ -4,6 +4,55 @@ Bitácora de trabajo. Cada sesión agrega una sección nueva arriba (orden crono
 
 ---
 
+## 2026-09-26 — Detección de cambios de precio, recordatorios de renovación y push notifications reales
+
+Rama: `feature/price-change-alerts` (PR #20, mergeado a `master`) + un fix directo sobre `master` (`a828aa2`).
+
+### Contexto
+
+Dos pedidos encadenados en la misma sesión: (1) avisar cuando el banco detecta que una suscripción confirmada ahora cobra un monto distinto al guardado, y (2) una notificación push diaria — tanto para esos cambios de precio como para recordar renovaciones 1 y 3 días antes. La app ya tenía el scaffolding de Web Push (`src/utils/push-notifications.ts`, `public/sw.js`) desde el README original, pero nunca había funcionado de verdad: apuntaba a un endpoint inexistente, con la VAPID key de ejemplo de la documentación.
+
+### 1. Detección de cambio de precio (`src/lib/subscription-detection.ts`, migración `012_subscription_price_changes.sql`)
+
+- `recurrence.ts` ya recalculaba en cada re-detección cuál es el precio *actual* según el banco (`sub.amount`, restitchado sobre todo el historial), pero ese dato solo llegaba a un `console.log`. Ahora `storeCharges` compara ese precio contra `subscriptions.amount` (lo que el usuario realmente ve) para toda suscripción ya confirmada.
+- Tabla de staging nueva `subscription_price_changes` (una fila viva por suscripción, `pending`/`dismissed`), mismo patrón que `detected_subscriptions`: upsert que resuelve solo, se re-flaggea si el precio cambia de nuevo, no vuelve a molestar si ya se descartó el mismo valor.
+- UI: banner nuevo en el dashboard (Aceptar/Ignorar), badge en `SubscriptionCard`, y resaltado (▲/▼) de la fila del historial de cargos en `SubscriptionDetailModal` donde cambió el precio.
+- Corre para TrueLayer y Salt Edge por igual (comparten `storeDetectedSubscriptions`).
+
+### 2. Recordatorios de renovación + auto-avance de `renewal_date` (`src/lib/renewal.ts`)
+
+- Se descubrió que `subscriptions.renewal_date` nunca se actualiza sola una vez que pasa (ni siquiera al confirmar un cargo bancario fresco) - un recordatorio de "1/3 días antes" solo habría disparado una vez por suscripción.
+- `advancePastRenewalDate()` adelanta una fecha vencida un ciclo de facturación completo por vez hasta dejarla en el futuro; el cron la corre para toda suscripción activa antes de chequear días restantes.
+- Sin tabla de estado propia: al ser puramente derivado de la fecha, el cron re-chequea cada día sin necesidad de marcar nada como "ya avisado".
+
+### 3. Push real (antes era un mock que no llegaba a ningún lado)
+
+- Paquete `web-push` + par de claves VAPID real (antes: la key de ejemplo de la documentación, hardcodeada).
+- Tabla `push_subscriptions` (migración `013_push_subscriptions.sql`) + `POST /api/push/subscribe` (antes no existía, el cliente le pegaba al vacío).
+- `src/lib/supabase/admin.ts`: cliente con la service-role key, para que el cron lea/escriba de todos los usuarios sin una sesión particular (bypassa RLS a propósito).
+- `src/app/api/cron/daily-alerts/route.ts` (antes `price-change-alerts`, renombrado al sumarle los recordatorios de renovación): protegido por `CRON_SECRET`, agrupa por usuario, respeta `notifications_enabled`, limpia subscriptions vencidas (404/410) automáticamente. `vercel.json` lo dispara 1 vez al día vía Vercel Cron (Hobby permite como máximo esa frecuencia).
+- Deep link: el payload lleva `data.url` = `/dashboard?subscription=<id>` cuando hay un único evento; el dashboard lee ese query param al cargar y abre el modal directo (`src/app/api/cron/daily-alerts` + lectura en `dashboard/page.tsx`).
+- Texto del push en 7 idiomas, en un diccionario propio (`src/lib/push.ts`) separado del catálogo i18n de la UI (este texto nunca pasa por React).
+
+### 4. Bugs preexistentes corregidos de paso (no eran de esta feature, pero estaban en el mismo camino)
+
+- `subscribeToPush()` posteaba a `/api/push/subscribe` sin el prefijo `BASE_PATH` - 404 en producción.
+- `RegisterSW` pedía permiso de notificaciones a cualquier visitante, incluso deslogueado.
+- `public/sw.js`: los íconos del push (`icon-192.png`) no llevaban el prefijo `basePath` que el resto del archivo sí usa.
+- `public/sw.js`: `cache.put()` sobre una request no-GET (ej. el POST de subscribe) quedaba sin capturar y aparecía como `Uncaught (in promise) TypeError: Failed to execute 'clone' on 'Response'` en consola - no rompía la respuesta real, pero ensuciaba la consola. Ahora se guarda en cache solo si `request.method === 'GET'` y cualquier fallo de cacheo se atrapa.
+
+### Verificado en producción (`subscription-guardian-iota.vercel.app`)
+
+Con datos reales: se confirmó que el cron corre, detecta un recordatorio de renovación real (`OVHcloud` con `renewal_date` movida a 3 días), entrega el push, y el click abre el dashboard directo en el modal de esa suscripción. Se repitió la prueba después del fix de `sw.js` para confirmar que no rompió nada.
+
+### Pendiente / conocido
+
+- **No hay forma de editar `renewal_date` (ni `amount`) de una suscripción ya creada desde la UI** - se descubrió durante el testing de esta sesión. El modal de detalle solo permite editar "cómo cancelar". Hubo que hacer el UPDATE a mano por SQL para poder probar.
+- Relacionado: el tab "Add" del dashboard (`setActiveTab('add')`) no renderiza ningún formulario en ningún lado del árbol de componentes - `AddSubscriptionForm` existe pero quedó huérfano (`handleAddSubscription` sin usar, lo marca eslint).
+- Los deploys de preview de Vercel están protegidos por SSO por defecto - no se puede probar el cron ahí sin un "Protection Bypass for Automation" secret. El testing real de esta sesión se hizo contra producción directamente.
+- El recordatorio de renovación no tiene catch-up: si el cron no corre exactamente el día que la suscripción está a 1 o 3 días, ese aviso puntual se pierde (igual que ya pasaba con los cambios de precio).
+- `advancePastRenewalDate` no se validó todavía con un ciclo semanal o trimestral real en producción, solo con el caso mensual/OVHcloud.
+
 ## 2026-09-18 — Integración real con TrueLayer (Open Banking)
 
 Rama: `feature/open-banking-integration`
