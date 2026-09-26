@@ -127,6 +127,8 @@ export const fr: Messages = {
     deleteFailed: 'Impossible de supprimer l’abonnement',
     disconnectConfirm: 'Déconnecter ce compte bancaire ?',
     disconnectFailed: 'Impossible de déconnecter le compte bancaire',
+    disconnectDeleteSubscriptionsConfirm_one: 'Ce compte a 1 abonnement confirmé. Le supprimer aussi ?',
+    disconnectDeleteSubscriptionsConfirm_other: 'Ce compte a {count} abonnements confirmés. Les supprimer aussi ?',
     reconnectConfirm: 'L’accès à votre banque a expiré. Reconnecter votre banque maintenant ?',
     checkFailed: 'Impossible de rechercher des abonnements',
     confirmFailed: 'Impossible de confirmer l’abonnement',

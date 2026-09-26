@@ -128,6 +128,8 @@ export const en = {
     deleteFailed: 'Failed to delete subscription',
     disconnectConfirm: 'Disconnect this bank account?',
     disconnectFailed: 'Failed to disconnect bank account',
+    disconnectDeleteSubscriptionsConfirm_one: 'This account has 1 confirmed subscription. Delete it too?',
+    disconnectDeleteSubscriptionsConfirm_other: 'This account has {count} confirmed subscriptions. Delete them too?',
     reconnectConfirm: 'Your bank access has expired. Reconnect your bank now?',
     checkFailed: 'Failed to check for subscriptions',
     confirmFailed: 'Failed to confirm subscription',

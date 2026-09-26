@@ -127,6 +127,8 @@ export const it: Messages = {
     deleteFailed: 'Impossibile eliminare l’abbonamento',
     disconnectConfirm: 'Scollegare questo conto bancario?',
     disconnectFailed: 'Impossibile scollegare il conto bancario',
+    disconnectDeleteSubscriptionsConfirm_one: 'Questo conto ha 1 abbonamento confermato. Eliminarlo anche?',
+    disconnectDeleteSubscriptionsConfirm_other: 'Questo conto ha {count} abbonamenti confermati. Eliminarli anche?',
     reconnectConfirm: 'L’accesso alla tua banca è scaduto. Ricollegarla ora?',
     checkFailed: 'Impossibile cercare abbonamenti',
     confirmFailed: 'Impossibile confermare l’abbonamento',

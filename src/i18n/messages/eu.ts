@@ -127,6 +127,8 @@ export const eu: Messages = {
     deleteFailed: 'Ezin izan da harpidetza ezabatu',
     disconnectConfirm: 'Banku-kontu hau deskonektatu?',
     disconnectFailed: 'Ezin izan da banku-kontua deskonektatu',
+    disconnectDeleteSubscriptionsConfirm_one: 'Kontu honek berretsitako harpidetza 1 du. Hori ere ezabatu?',
+    disconnectDeleteSubscriptionsConfirm_other: 'Kontu honek berretsitako {count} harpidetza ditu. Horiek ere ezabatu?',
     reconnectConfirm: 'Zure bankurako sarbidea iraungi da. Bankua berriro konektatu nahi duzu orain?',
     checkFailed: 'Ezin izan dira harpidetzak bilatu',
     confirmFailed: 'Ezin izan da harpidetza berretsi',

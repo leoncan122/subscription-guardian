@@ -127,6 +127,8 @@ export const de: Messages = {
     deleteFailed: 'Abo konnte nicht gelöscht werden',
     disconnectConfirm: 'Dieses Bankkonto trennen?',
     disconnectFailed: 'Bankkonto konnte nicht getrennt werden',
+    disconnectDeleteSubscriptionsConfirm_one: 'Dieses Konto hat 1 bestätigtes Abo. Auch dieses löschen?',
+    disconnectDeleteSubscriptionsConfirm_other: 'Dieses Konto hat {count} bestätigte Abos. Auch diese löschen?',
     reconnectConfirm: 'Der Zugriff auf deine Bank ist abgelaufen. Jetzt erneut verbinden?',
     checkFailed: 'Suche nach Abos fehlgeschlagen',
     confirmFailed: 'Abo konnte nicht bestätigt werden',
