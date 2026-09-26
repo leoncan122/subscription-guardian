@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { getCategoryColor, formatCurrency } from "@/utils/helpers";
 import { Subscription } from "@/types/subscription";
+import type { PendingPriceChangeRow } from "@/lib/supabase/subscriptions";
 import { useTranslation, categoryLabel, billingCycleLabel, renewalText } from "@/i18n";
 
 // How long the chasing-color ring plays before the detail view actually
@@ -9,11 +10,14 @@ const OPEN_ANIMATION_MS = 500;
 
 export function SubscriptionCard({
   subscription,
+  priceChange,
   onOpenDetail,
   onDelete,
   onToggle,
 }: {
   subscription: Subscription;
+  // a pending price change detected for this subscription, if any
+  priceChange?: PendingPriceChangeRow;
   onOpenDetail: (subscription: Subscription) => void;
   onDelete: (id: string) => void;
   onToggle: (id: string, active: boolean) => void;
@@ -67,6 +71,16 @@ export function SubscriptionCard({
               <span className={`text-xs px-2 py-0.5 rounded-full ${categoryColor}`}>
                 {categoryLabel(t, subscription.category)}
               </span>
+              {priceChange && (
+                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  priceChange.newAmount > priceChange.oldAmount
+                    ? "bg-yellow-900/40 text-yellow-400"
+                    : "bg-blue-900/40 text-blue-400"
+                }`}>
+                  {priceChange.newAmount > priceChange.oldAmount ? "▲" : "▼"}{" "}
+                  {formatCurrency(priceChange.newAmount, priceChange.currency, locale)}
+                </span>
+              )}
             </div>
 
             <div className="mt-2 space-y-1">

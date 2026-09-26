@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/subscription-guardian/api/cron/price-change-alerts",
+      "schedule": "0 13 * * *"
+    }
+  ]
+}
