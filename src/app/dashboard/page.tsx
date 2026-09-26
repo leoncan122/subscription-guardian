@@ -22,6 +22,7 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { useFxRates, monthlyTotalInBase } from '@/lib/fx';
 import { getCountry } from '@/lib/locale';
 import { useTranslation, categoryLabel, billingCycleLabel } from '@/i18n';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 
 const CURRENCY_SUGGESTION_DISMISSED_KEY = 'sg:currency-suggestion-dismissed';
 
@@ -60,6 +61,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const { settings, loading: settingsLoading, updateSettings } = useSettings();
   const { t } = useTranslation();
+  const { dialog, confirmDialog, alertDialog } = useConfirmDialog();
   const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(readDismissedSuggestion);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [bankConnections, setBankConnections] = useState<TrueLayerConnectionSummary[]>([]);
@@ -124,7 +126,7 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Failed to add subscription:', error);
-      alert(t('dashboardAlerts.addFailed'));
+      await alertDialog(t('dashboardAlerts.addFailed'), t('common.accept'));
     }
   };
 
@@ -136,7 +138,7 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Failed to update subscription:', error);
-      alert(t('dashboardAlerts.updateFailed'));
+      await alertDialog(t('dashboardAlerts.updateFailed'), t('common.accept'));
     }
   };
 
@@ -163,22 +165,31 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Failed to delete subscription:', error);
-      alert(t('dashboardAlerts.deleteFailed'));
+      await alertDialog(t('dashboardAlerts.deleteFailed'), t('common.accept'));
     }
   };
 
   const handleDismissAccount = async (conn: TrueLayerConnectionSummary) => {
-    if (!confirm(t('dashboardAlerts.disconnectConfirm'))) return;
+    const confirmed = await confirmDialog(t('dashboardAlerts.disconnectConfirm'), {
+      confirmLabel: t('common.confirm'),
+      cancelLabel: t('common.cancel'),
+      danger: true,
+    });
+    if (!confirmed) return;
 
     // Confirmed subscriptions outlive the connection they were detected
     // from, so ask separately whether to take them down too.
     const linkedSubscriptionIds = await getSubscriptionIdsForConnection(conn.id);
     const alsoDeleteSubscriptions = linkedSubscriptionIds.length > 0 &&
-      confirm(t('dashboardAlerts.disconnectDeleteSubscriptionsConfirm', { count: linkedSubscriptionIds.length }));
+      await confirmDialog(t('dashboardAlerts.disconnectDeleteSubscriptionsConfirm', { count: linkedSubscriptionIds.length }), {
+        confirmLabel: t('common.confirm'),
+        cancelLabel: t('common.cancel'),
+        danger: true,
+      });
 
     const disconnected = await disconnectBankConnection(conn.id, conn.aggregator);
     if (!disconnected) {
-      alert(t('dashboardAlerts.disconnectFailed'));
+      await alertDialog(t('dashboardAlerts.disconnectFailed'), t('common.accept'));
       return;
     }
     setBankConnections(prev => prev.filter(c => c.id !== conn.id));
@@ -200,15 +211,19 @@ export default function DashboardPage() {
         // The server retired this connection; drop it and its pending items.
         setBankConnections(prev => prev.filter(c => c.id !== conn.id));
         setDetectedSubs(await getPendingDetectedSubscriptions());
-        if (confirm(t('dashboardAlerts.reconnectConfirm'))) {
+        const reconnect = await confirmDialog(t('dashboardAlerts.reconnectConfirm'), {
+          confirmLabel: t('common.confirm'),
+          cancelLabel: t('common.cancel'),
+        });
+        if (reconnect) {
           router.push('/connect-bank');
         }
       } else {
-        alert(t('dashboardAlerts.checkFailed'));
+        await alertDialog(t('dashboardAlerts.checkFailed'), t('common.accept'));
       }
     } catch (error) {
       console.error('Failed to check for subscriptions:', error);
-      alert(t('dashboardAlerts.checkFailed'));
+      await alertDialog(t('dashboardAlerts.checkFailed'), t('common.accept'));
     } finally {
       setSyncing(false);
     }
@@ -221,11 +236,11 @@ export default function DashboardPage() {
         setDetectedSubs(prev => prev.filter(d => d.id !== detected.id));
         setSubscriptions(prev => [...prev, newSub]);
       } else {
-        alert(t('dashboardAlerts.confirmFailed'));
+        await alertDialog(t('dashboardAlerts.confirmFailed'), t('common.accept'));
       }
     } catch (error) {
       console.error('Failed to confirm subscription:', error);
-      alert(t('dashboardAlerts.confirmFailed'));
+      await alertDialog(t('dashboardAlerts.confirmFailed'), t('common.accept'));
     }
   };
 
@@ -244,39 +259,43 @@ export default function DashboardPage() {
       if (dismissed) {
         setDetectedSubs(prev => prev.filter(d => d.id !== id));
       } else {
-        alert(t('dashboardAlerts.dismissFailed'));
+        await alertDialog(t('dashboardAlerts.dismissFailed'), t('common.accept'));
       }
     } catch (error) {
       console.error('Failed to dismiss subscription:', error);
-      alert(t('dashboardAlerts.dismissFailed'));
+      await alertDialog(t('dashboardAlerts.dismissFailed'), t('common.accept'));
     }
   };
 
   const handleDismissCategory = async (category: string, items: DetectedSubscriptionRow[]) => {
-    if (!confirm(t('dashboardAlerts.dismissCategoryConfirm', { count: items.length, category: categoryLabel(t, category) }))) return;
+    const confirmed = await confirmDialog(
+      t('dashboardAlerts.dismissCategoryConfirm', { count: items.length, category: categoryLabel(t, category) }),
+      { confirmLabel: t('common.confirm'), cancelLabel: t('common.cancel'), danger: true }
+    );
+    if (!confirmed) return;
     const ids = new Set(items.map(d => d.id));
     try {
       const dismissed = await dismissDetectedSubscriptions([...ids]);
       if (dismissed) {
         setDetectedSubs(prev => prev.filter(d => !ids.has(d.id)));
       } else {
-        alert(t('dashboardAlerts.dismissManyFailed'));
+        await alertDialog(t('dashboardAlerts.dismissManyFailed'), t('common.accept'));
       }
     } catch (error) {
       console.error('Failed to dismiss subscriptions:', error);
-      alert(t('dashboardAlerts.dismissManyFailed'));
+      await alertDialog(t('dashboardAlerts.dismissManyFailed'), t('common.accept'));
     }
   };
 
   const handleConfirmOnboarding = async () => {
     if (!(await updateSettings({ onboardedAt: new Date().toISOString() }))) {
-      alert(t('dashboardAlerts.saveSettingsFailed'));
+      await alertDialog(t('dashboardAlerts.saveSettingsFailed'), t('common.accept'));
     }
   };
 
   const handleUseSuggestedCurrency = async (currency: string) => {
     if (!(await updateSettings({ currency }))) {
-      alert(t('dashboardAlerts.saveSettingsFailed'));
+      await alertDialog(t('dashboardAlerts.saveSettingsFailed'), t('common.accept'));
     }
   };
 
@@ -294,16 +313,16 @@ export default function DashboardPage() {
     try {
       const { success, synced } = await syncToCloud();
       if (success) {
-        alert(t('dashboardAlerts.syncSuccess', { count: synced }));
+        await alertDialog(t('dashboardAlerts.syncSuccess', { count: synced }), t('common.accept'));
         // Reload from cloud
         const subs = await getSubscriptions();
         setSubscriptions(subs);
       } else {
-        alert(t('dashboardAlerts.syncFailed'));
+        await alertDialog(t('dashboardAlerts.syncFailed'), t('common.accept'));
       }
     } catch (error) {
       console.error('Sync failed:', error);
-      alert(t('dashboardAlerts.syncFailed'));
+      await alertDialog(t('dashboardAlerts.syncFailed'), t('common.accept'));
     } finally {
       setSyncing(false);
     }
@@ -668,6 +687,8 @@ export default function DashboardPage() {
           onSaveCancellationInfo={handleSaveCancellationInfo}
         />
       )}
+
+      {dialog}
     </div>
   );
 }

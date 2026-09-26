@@ -7,6 +7,7 @@ export const de: Messages = {
     unknownError: 'Unbekannter Fehler',
     backToDashboard: 'Zurück zur Übersicht',
     confirm: 'Bestätigen',
+    accept: 'OK',
     dismiss: 'Verwerfen',
     cancel: 'Abbrechen',
     save: 'Speichern',

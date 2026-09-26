@@ -7,6 +7,7 @@ export const it: Messages = {
     unknownError: 'Errore sconosciuto',
     backToDashboard: 'Torna alla dashboard',
     confirm: 'Conferma',
+    accept: 'OK',
     dismiss: 'Ignora',
     cancel: 'Annulla',
     save: 'Salva',
