@@ -18,9 +18,11 @@ export function SubscriptionCard({
   subscription: Subscription;
   // a pending price change detected for this subscription, if any
   priceChange?: PendingPriceChangeRow;
-  onOpenDetail: (subscription: Subscription) => void;
-  onDelete: (id: string) => void;
-  onToggle: (id: string, active: boolean) => void;
+  // Handlers are optional so the card can be rendered read-only (the
+  // history page lists subscriptions for reference, not for editing).
+  onOpenDetail?: (subscription: Subscription) => void;
+  onDelete?: (id: string) => void;
+  onToggle?: (id: string, active: boolean) => void;
 }) {
   const { t, locale } = useTranslation();
   const [isOpening, setIsOpening] = useState(false);
@@ -29,7 +31,7 @@ export function SubscriptionCard({
   const categoryColor = getCategoryColor(subscription.category);
 
   const handleOpen = () => {
-    if (isOpening) return;
+    if (isOpening || !onOpenDetail) return;
     setIsOpening(true);
     window.setTimeout(() => {
       onOpenDetail(subscription);
@@ -52,13 +54,15 @@ export function SubscriptionCard({
         </span>
       )}
       <div
-        onClick={handleOpen}
-        role="button"
-        tabIndex={0}
+        onClick={onOpenDetail ? handleOpen : undefined}
+        role={onOpenDetail ? "button" : undefined}
+        tabIndex={onOpenDetail ? 0 : undefined}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") handleOpen();
         }}
-        className={`relative z-10 rounded-[10px] p-4 border transition-all cursor-pointer ${
+        className={`relative z-10 rounded-[10px] p-4 border transition-all ${
+          onOpenDetail ? "cursor-pointer" : ""
+        } ${
           subscription.active
             ? "bg-gray-900 border-gray-800 hover:border-gray-700"
             : "bg-gray-900/50 border-gray-800/50 opacity-60"
@@ -120,11 +124,11 @@ export function SubscriptionCard({
             </div>
           </div>
 
-          <div className="flex flex-col items-end gap-1 ml-3">
+          <div className={`flex flex-col items-end gap-1 ml-3 ${onToggle || onDelete ? "" : "hidden"}`}>
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onToggle(subscription.id, !subscription.active);
+                onToggle?.(subscription.id, !subscription.active);
               }}
               className={`w-10 h-6 rounded-full transition-colors relative ${
                 subscription.active ? "bg-blue-600" : "bg-gray-700"
@@ -140,7 +144,7 @@ export function SubscriptionCard({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onDelete(subscription.id);
+                onDelete?.(subscription.id);
               }}
               className="text-gray-500 hover:text-red-400 text-xs transition-colors"
               aria-label={t("subscription.delete")}

@@ -771,7 +771,16 @@ export default function DashboardPage() {
       </div>
 
       {/* Tab bar */}
-      <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+      <TabBar
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          if (tab === 'history') {
+            router.push('/history');
+            return;
+          }
+          setActiveTab(tab);
+        }}
+      />
 
       {selectedSubscription && (
         <SubscriptionDetailModal
