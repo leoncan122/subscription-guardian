@@ -2,6 +2,9 @@ import { supabase } from '@/lib/supabase/client'
 import { Subscription, Category, BillingCycle } from '@/types/subscription'
 import { BASE_PATH } from '@/lib/constants'
 import type { BankAggregator } from '@/lib/truelayer/types'
+// Type-only import: subscription-history imports SubscriptionCharge from
+// this module, so a value import here would be a real cycle.
+import type { CanceledSubscription } from '@/lib/subscription-history'
 
 const VALID_CATEGORIES: Category[] = ['entertainment', 'productivity', 'storage', 'sports', 'education', 'utility', 'other']
 
@@ -19,6 +22,55 @@ export async function getSubscriptions(): Promise<Subscription[]> {
 
   if (error) throw error
   return (data || []).map(normalizeSubscription)
+}
+
+// Cancelled subscriptions, for the history page. getSubscriptions above
+// filters active=true, so these are invisible to the rest of the app even
+// though the rows never left the database.
+export async function getCanceledSubscriptions(): Promise<CanceledSubscription[]> {
+  if (!supabase) return []
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('active', false)
+    .order('updated_at', { ascending: false })
+
+  if (error) throw error
+  return (data || []).map((row) => ({
+    ...normalizeSubscription(row),
+    // Null until migration 014 is applied; the UI degrades to "fecha
+    // desconocida" instead of showing a wrong saving.
+    canceledAt: row.canceled_at ?? null,
+  }))
+}
+
+// Every charge on record, across all subscriptions - the dashboard only
+// ever loads charges for one subscription at a time (getSubscriptionCharges).
+export async function getAllSubscriptionCharges(): Promise<SubscriptionCharge[]> {
+  if (!supabase) return []
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('subscription_charges')
+    .select('charged_on, amount, currency')
+    .eq('user_id', user.id)
+    .order('charged_on', { ascending: false })
+
+  if (error) {
+    console.error('Failed to load all subscription charges:', error)
+    return []
+  }
+
+  return (data || []).map((row: { charged_on: string; amount: number; currency: string }) => ({
+    chargedOn: row.charged_on,
+    amount: row.amount,
+    currency: row.currency,
+  }))
 }
 
 export async function addSubscription(sub: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'>): Promise<Subscription | null> {
@@ -52,10 +104,21 @@ export async function updateSubscription(id: string, updates: Partial<Subscripti
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
+  // Toggling active stamps/clears the cancellation date, which is what the
+  // history page's accumulated-saving figure is counted from. Reactivating
+  // clears it so a later cancellation starts counting fresh.
+  const cancellation =
+    updates.active === false
+      ? { canceled_at: new Date().toISOString() }
+      : updates.active === true
+        ? { canceled_at: null }
+        : {}
+
   const { data, error } = await supabase
     .from('subscriptions')
     .update({
       ...updates,
+      ...cancellation,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
